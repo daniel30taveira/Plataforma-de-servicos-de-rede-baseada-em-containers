@@ -1,0 +1,38 @@
+---
+- name: Configuração inicial do servidor e instalação do Docker
+  hosts: servidores
+  become: yes # Permite executar comandos como administrador (sudo)
+
+  tasks:
+    - name: Atualizar a cache do apt (repositórios)
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Instalar pacotes pré-requisitos do sistema
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - software-properties-common
+        state: present
+
+    - name: Instalar o Docker e o Docker Compose
+      apt:
+        name:
+          - docker.io
+          - docker-compose-v2
+        state: present
+
+    - name: Garantir que o serviço do Docker arranca automaticamente com o sistema
+      systemd:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Adicionar o utilizador atual ao grupo docker (para não exigir sudo)
+      user:
+        name: "{{ ansible_user }}"
+        groups: docker
+        append: yes

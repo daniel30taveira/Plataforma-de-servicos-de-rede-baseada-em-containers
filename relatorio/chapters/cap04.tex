@@ -31,4 +31,29 @@ O ponto de partida da automação é o ficheiro de inventário (\texttt{inventor
     \label{fig:ansible_inventory}
 \end{figure}
 
+\subsection*{Nota sobre o Ambiente de Execução (Control Node)}
+
+É importante salientar uma particularidade da arquitetura de \textit{deploy}. Uma vez que a máquina física do administrador opera com o sistema operativo Windows, que não suporta nativamente a execução do Ansible, adotou-se o \textbf{WSL (Windows Subsystem for Linux)} como \textit{Control Node}. 
+
+O WSL fornece um ambiente Linux completo e integrado, permitindo a instalação do Ansible e a execução transparente dos \textit{Playbooks}. Através desta abordagem, o terminal WSL comunica de forma segura via protocolo SSH com a máquina virtual VMware (\textit{Managed Node}), aplicando as configurações sem necessitar de ferramentas adicionais ou de dual-boot no sistema hospedeiro.
+
 Com o inventário configurado, o passo seguinte consistiu na criação do \textit{Playbook} responsável por instalar as dependências base do sistema, nomeadamente o motor de \textit{containers} (Docker), que servirá de alicerce para todos os serviços subsequentes.
+
+Para materializar a instalação do motor de \textit{containers}, desenvolveu-se o \textit{Playbook} \texttt{setup\_docker.yml}. Este \textit{script} declarativo é responsável por executar as seguintes tarefas no servidor de destino:
+
+\begin{enumerate}
+    \item Atualização da \textit{cache} dos repositórios APT.
+    \item Instalação de pacotes utilitários e de certificados de segurança.
+    \item Instalação do motor principal (\texttt{docker.io}) e do \textit{plugin} \texttt{docker-compose-v2}, fundamentais para a orquestração dos serviços da plataforma.
+    \item Ativação do serviço \textit{daemon} do Docker no \texttt{systemd}, garantindo a sua inicialização automática em caso de reinício do servidor.
+    \item Adição do utilizador remoto ao grupo \texttt{docker}, implementando o princípio de menor privilégio ao evitar o uso constante de credenciais \textit{root} para a gestão de \textit{containers}.
+\end{enumerate}
+
+A execução deste \textit{Playbook} a partir da máquina local do administrador garante que o servidor \textit{host} fica imediatamente pronto a receber os serviços da plataforma. A Figura \ref{fig:ansible_sucesso} ilustra o resultado (em jargão técnico, o \textit{Play Recap}) de uma execução bem-sucedida do Ansible contra a máquina virtual, demonstrando a idempotência da ferramenta (aplicação das configurações sem causar erros em execuções repetidas).
+
+\begin{figure}[h!]
+    \centering
+    \includegraphics[width=0.9\textwidth]{ansible_sucesso.png}
+    \caption{Execução bem-sucedida do \textit{Playbook} de instalação do Docker.}
+    \label{fig:ansible_sucesso}
+\end{figure}
