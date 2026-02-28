@@ -1,0 +1,25 @@
+\chapter{Estado da Arte}
+\label{chap:estado_arte}
+
+A transição de infraestruturas baseadas em máquinas virtuais monolíticas para arquiteturas orientadas a \textit{containers} revolucionou a administração de sistemas. Este capítulo explora as tecnologias e os paradigmas atuais que suportam a criação de plataformas de serviços de rede ágeis, seguras e observáveis.
+
+\section{Containerização e Orquestração Leve}
+
+Tradicionalmente, a segregação de serviços exigia a alocação de máquinas virtuais independentes, o que resultava num elevado \textit{overhead} de recursos e numa gestão complexa. Atualmente, motores de \textit{containerização} como o Docker e o Podman tornaram-se o padrão da indústria. Estas ferramentas permitem encapsular uma aplicação e todas as suas dependências num ambiente isolado, que partilha o \textit{kernel} do sistema operativo \textit{host}. 
+
+O Podman, em particular, destaca-se pela sua arquitetura \textit{daemonless} e pela capacidade de executar \textit{containers} sem privilégios de \textit{root}, indo ao encontro das melhores práticas de segurança (o princípio do mínimo privilégio). Para a orquestração de infraestruturas de pequena a média dimensão, ferramentas declarativas como o Docker Compose oferecem a "orquestração leve" ideal. Permitem definir infraestruturas complexas como código (IaC - \textit{Infrastructure as Code}) de forma totalmente reprodutível e facilmente versionável.
+
+\section{Observabilidade Centralizada}
+
+Manter um conjunto de serviços distribuídos exige mais do que uma simples monitorização; exige observabilidade. O estado da arte baseia-se em \textit{stacks} \textit{open source} complementares:
+
+\begin{itemize}
+    \item \textbf{Métricas:} O Prometheus atua como o motor principal de recolha de métricas em formato \textit{time-series}, trabalhando em conjunto com o Grafana para a visualização avançada de dados através de \textit{dashboards} dinâmicos.
+    \item \textbf{Logs:} Soluções como a \textit{stack} ELK (Elasticsearch, Logstash, Kibana) ou o Loki (otimizado pela Grafana Labs para ambientes de \textit{containers}) permitem agregar \textit{logs} de múltiplos serviços num único ponto central. Isto facilita substancialmente o processo de \textit{troubleshooting}.
+\end{itemize}
+
+\section{Segurança e CI/CD em Ambientes Locais}
+
+A segurança \textit{by design} é um requisito fundamental na gestão de redes modernas. Isto inclui o uso sistemático de \textit{Reverse Proxies} (como o Nginx, Traefik ou Caddy), que gerem a terminação TLS/SSL de forma automática, e o \textit{hardening} de imagens base. 
+
+A adoção de \textit{pipelines} de CI/CD (Integração e Entrega Contínuas) deixou de ser um processo exclusivo do desenvolvimento de \textit{software} e passou a integrar a gestão de infraestruturas (GitOps). A utilização de repositórios Git acoplados a \textit{runners} locais permite que qualquer alteração na infraestrutura (como uma atualização de versão do servidor DNS ou a adição de um novo serviço Web) seja testada antes do \textit{deploy} para o ambiente de produção. Esta prática reduz o erro humano e garante um \textit{rollback} fiável em caso de falha dos serviços.

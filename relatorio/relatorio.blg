@@ -1,0 +1,18 @@
+[0] Config.pm:328> INFO - This is Biber 2.21
+[0] Config.pm:331> INFO - Logfile is 'relatorio.blg'
+[115] biber-MSWIN64:342> INFO - === 
+[153] Biber.pm:421> INFO - Reading 'relatorio.bcf'
+[275] Biber.pm:1002> INFO - Found 4 citekeys in bib section 0
+[291] Biber.pm:4487> INFO - Processing section 0
+[302] Biber.pm:4678> INFO - Looking for bibtex file 'lib/refs.bib' for section 0
+[351] bibtex.pm:1713> INFO - LaTeX decoding ...
+[360] bibtex.pm:1519> INFO - Found BibTeX data source 'lib/refs.bib'
+[435] UCollate.pm:68> INFO - Overriding locale 'pt-PT' defaults 'normalization = NFD' with 'normalization = prenormalized'
+[435] UCollate.pm:68> INFO - Overriding locale 'pt-PT' defaults 'variable = shifted' with 'variable = non-ignorable'
+[435] Biber.pm:4307> INFO - Sorting list 'none/global//global/global/global' of type 'entry' with template 'none' and locale 'pt-PT'
+[435] Biber.pm:4313> INFO - No sort tailoring available for locale 'pt-PT'
+[443] bbl.pm:676> INFO - Writing 'relatorio.bbl' with encoding 'UTF-8'
+[445] bbl.pm:779> INFO - Output to relatorio.bbl
+[445] Biber.pm:132> WARN - legacy month field 'August' in entry 'TECH01' is not an integer - this will probably not sort properly.
+[445] Biber.pm:132> WARN - ISBN '123456789' in entry 'BOOK01' is invalid - run biber with '--validate_datamodel' for details.
+[445] Biber.pm:134> INFO - WARNINGS: 2

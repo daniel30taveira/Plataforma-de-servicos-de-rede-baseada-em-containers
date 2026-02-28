@@ -1,0 +1,27 @@
+\chapter{Levantamento das Necessidades Funcionais}
+\label{chap:necessidades}
+
+Com base no guião do projeto proposto, o objetivo central consiste na criação de um "data center" de serviços de rede que possa ser gerido de forma reprodutível, recorrendo exclusivamente a ferramentas \textit{open source}. Para atingir este objetivo, as necessidades do projeto dividem-se em duas categorias principais: os serviços a disponibilizar (requisitos funcionais) e os requisitos técnicos e de arquitetura (requisitos não-funcionais).
+
+\section{Serviços de Rede a Disponibilizar}
+
+A infraestrutura deve contemplar um conjunto de serviços típicos de uma rede de pequena/média dimensão. Os serviços a implementar são os seguintes:
+
+\begin{itemize}
+    \item \textbf{Servidor DNS:} Implementação de um servidor com capacidade recursiva e autoritativa para a resolução de nomes na rede interna.
+    \item \textbf{Reverse Proxy HTTPS:} Criação de um ponto de entrada único e seguro para o encaminhamento de tráfego para os diversos serviços internos.
+    \item \textbf{Serviços Web e de E-mail:} Alojamento de páginas \textit{web} e disponibilização de um sistema de gestão básica de correio eletrónico.
+    \item \textbf{Servidor de Ficheiros:} Sistema centralizado para o armazenamento e a partilha de ficheiros na rede.
+    \item \textbf{VPN (\textit{Virtual Private Network}):} Implementação de um serviço que permita o acesso remoto e seguro à infraestrutura interna de \textit{containers}.
+\end{itemize}
+
+\section{Requisitos Técnicos e de Arquitetura}
+
+Para além do correto funcionamento dos serviços, a plataforma tem de respeitar rigorosos critérios de implementação e gestão:
+
+\begin{itemize}
+    \item \textbf{Containerização e Configuração Declarativa:} Todos os serviços têm de ser executados em \textit{containers} (Docker ou Podman). A configuração deve ser feita de forma declarativa (utilizando ficheiros como o \texttt{docker-compose.yml}), o que garante a sua reprodutibilidade e permite o versionamento.
+    \item \textbf{Observabilidade e Monitorização:} É obrigatória a integração de uma \textit{stack} \textit{open source} (por exemplo, Prometheus, Grafana, Loki ou ELK/EFK) para a recolha contínua de métricas, gestão de \textit{logs} centralizados e configuração de alertas básicos (como latência, erros 5xx ou saturação de CPU/RAM).
+    \item \textbf{Segurança (\textit{Hardening}):} O projeto exige a aplicação do princípio do mínimo privilégio nos \textit{containers}, gestão segura e isolada de segredos, encriptação obrigatória de tráfego (TLS) e uma política de atualização automatizada das imagens dos \textit{containers}.
+    \item \textbf{Pipeline de CI/CD:} Deve ser implementada uma \textit{pipeline} simples (utilizando, por exemplo, o Git em conjunto com um \textit{runner} local) para testar automaticamente as alterações de configuração e assegurar um \textit{deploy} controlado para o ambiente de produção do laboratório.
+\end{itemize}
