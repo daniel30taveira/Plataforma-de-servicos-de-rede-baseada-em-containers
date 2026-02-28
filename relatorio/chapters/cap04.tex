@@ -1,3 +1,34 @@
-\chapter{Desenvolvimento/Implementação}\label{cap:development}
+\chapter{Arquitetura e Implementação}
+\label{chap:implementacao}
 
-Neste capítulo é descrito o trabalho de implementação, salientando os pontos mais relevantes da mesma, dificuldades  encontradas ou soluções técnicas inovadoras desenvolvidas ou aplicadas.  Em particular, se foi usado código desenvolvido por terceiros (por exemplo, código {\it open-source}), deve ser facilmente distinguível quais as funcionalidades originais do mesmo e o que foi necessário implementar para obter as funcionalidades desejadas.
+Este capítulo detalha o processo prático de implementação da plataforma de serviços de rede. A abordagem adotada seguiu as melhores práticas de "Infraestrutura como Código" (IaC), garantindo que todo o ambiente pudesse ser reconstruído de forma automatizada e previsível.
+
+\section{Configuração do Ambiente Base}
+
+O primeiro passo consistiu na preparação do \textit{host} físico que iria albergar os \textit{containers}. Para simular um ambiente de \textit{data center} isolado, mas acessível para testes, recorreu-se ao \textit{hypervisor} VMware para criar uma máquina virtual (VM) a correr o Ubuntu Server 24.04 LTS. 
+
+A interface de rede da VM foi configurada em modo \textit{Bridged}, permitindo-lhe obter um endereço IP dedicado na rede local. A Figura \ref{fig:ubuntu_ip} demonstra o acesso inicial ao servidor por SSH e a verificação da sua configuração de rede.
+
+\begin{figure}[h!]
+    \centering
+    \includegraphics[width=0.8\textwidth]{ubuntu_ip.png}
+    \caption{Verificação do endereço IP e acesso SSH ao Ubuntu Server.}
+    \label{fig:ubuntu_ip}
+\end{figure}
+
+O acesso remoto por SSH é crucial, uma vez que permite operar o servidor de forma \textit{headless} (sem interface gráfica), otimizando o consumo de recursos e preparando o terreno para a automação remota.
+
+\section{Automação da Infraestrutura com Ansible}
+
+Para cumprir o requisito de reprodutibilidade do projeto, optou-se por não realizar instalações manuais no servidor. Em vez disso, introduziu-se o \textbf{Ansible} como ferramenta de gestão de configuração. O Ansible liga-se ao servidor por SSH e executa instruções definidas em ficheiros YAML (\textit{Playbooks}), garantindo que o estado final do servidor é sempre o esperado.
+
+O ponto de partida da automação é o ficheiro de inventário (\texttt{inventory.ini}), onde se define o endereço IP e o utilizador de acesso ao servidor de destino, conforme ilustrado na Figura \ref{fig:ansible_inventory}.
+
+\begin{figure}[h!]
+    \centering
+    \includegraphics[width=0.8\textwidth]{ansible_inventory.png}
+    \caption{Estrutura do repositório e ficheiro de inventário do Ansible.}
+    \label{fig:ansible_inventory}
+\end{figure}
+
+Com o inventário configurado, o passo seguinte consistiu na criação do \textit{Playbook} responsável por instalar as dependências base do sistema, nomeadamente o motor de \textit{containers} (Docker), que servirá de alicerce para todos os serviços subsequentes.
