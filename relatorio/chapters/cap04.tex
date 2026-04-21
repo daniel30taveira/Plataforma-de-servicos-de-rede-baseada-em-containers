@@ -112,3 +112,12 @@ O primeiro passo consistiu na configuração de um \textit{GitLab Runner} local.
 \end{figure}
 
 Após o estabelecimento do canal de comunicação, desenvolveu-se o ficheiro de orquestração \texttt{.gitlab-ci.yml}. Esta \textit{pipeline} foi desenhada para executar autonomamente os \textit{Playbooks} de Ansible sempre que ocorre um novo \textit{commit} na \textit{branch} principal, assegurando o \textit{deploy} declarativo dos serviços Docker sem necessidade de intervenção interativa via SSH.
+
+Após a configuração das devidas permissões de sistema (permitindo ao utilizador do \textit{runner} executar operações privilegiadas sem necessidade de introdução manual de palavra-passe) e a instalação do \textit{core} do Ansible diretamente no servidor, a \textit{pipeline} concluiu o seu primeiro ciclo completo com sucesso. A Figura \ref{fig:pipeline_sucesso} demonstra a saída (\textit{output}) do processo de \textit{deploy} totalmente automatizado, desde a deteção da alteração no repositório até ao arranque dos serviços Docker.
+
+\begin{figure}[h!]
+    \centering
+    \includegraphics[width=0.9\textwidth]{pipeline_sucesso.png}
+    \caption{Execução bem-sucedida da pipeline de CI/CD para o \textit{deploy} da infraestrutura.}
+    \label{fig:pipeline_sucesso}
+\end{figure}
