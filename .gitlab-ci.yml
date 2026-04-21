@@ -1,0 +1,13 @@
+stages:
+  - deploy
+
+deploy_infraestrutura:
+  stage: deploy
+  tags:
+    - meu-runner-local 
+  script:
+    - echo "A iniciar o deploy automático via CI/CD..."
+    - cd infra
+    # Corre o Ansible localmente, dizendo-lhe que o inventário é a própria máquina
+    - sudo ansible-playbook -i "localhost," -c local deploy_servicos.yml
+    - echo "Deploy concluído com sucesso!"

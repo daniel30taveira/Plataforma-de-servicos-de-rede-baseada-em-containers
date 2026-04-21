@@ -89,3 +89,26 @@ sudo docker exec dns_pihole pihole setpassword 'nova_password'
 \end{lstlisting}
 
 Este tipo de intervenção pontual demonstra a flexibilidade das arquiteturas baseadas em \textit{containers}: os problemas podem ser isolados e resolvidos diretamente dentro do ecossistema do serviço afetado, mantendo a integridade do servidor \textit{host} e dos restantes serviços da plataforma.
+
+
+\section{Implementação de CI/CD (Integração e Entrega Contínuas)}
+
+De forma a mitigar o erro humano e garantir que o estado do repositório de código reflete fidedignamente o estado da infraestrutura (\textit{Single Source of Truth}), implementou-se uma \textit{pipeline} de CI/CD recorrendo à plataforma GitLab.
+
+O primeiro passo consistiu na configuração de um \textit{GitLab Runner} local. Por questões de segurança e arquitetura de rede (uma vez que o servidor se encontra numa rede privada), optou-se pelo modelo \textit{Pull}: o \textit{Runner} foi instalado diretamente no \textit{host} Ubuntu e configurado com o executor \texttt{shell}, interpelando periodicamente o servidor do GitLab para obter novos \textit{jobs} de \textit{deploy}. A Figura \ref{fig:runner_registo} ilustra o processo de registo com sucesso no terminal, e a Figura \ref{fig:runner_online} comprova a sua comunicação ativa com a plataforma central.
+
+\begin{figure}[h!]
+    \centering
+    \includegraphics[width=0.9\textwidth]{gitlab_runner_registo.png}
+    \caption{Registo bem-sucedido do GitLab Runner no servidor Ubuntu.}
+    \label{fig:runner_registo}
+\end{figure}
+
+\begin{figure}[h!]
+    \centering
+    \includegraphics[width=0.9\textwidth]{gitlab_runner_online.png}
+    \caption{Runner ativo e em comunicação com o repositório GitLab.}
+    \label{fig:runner_online}
+\end{figure}
+
+Após o estabelecimento do canal de comunicação, desenvolveu-se o ficheiro de orquestração \texttt{.gitlab-ci.yml}. Esta \textit{pipeline} foi desenhada para executar autonomamente os \textit{Playbooks} de Ansible sempre que ocorre um novo \textit{commit} na \textit{branch} principal, assegurando o \textit{deploy} declarativo dos serviços Docker sem necessidade de intervenção interativa via SSH.

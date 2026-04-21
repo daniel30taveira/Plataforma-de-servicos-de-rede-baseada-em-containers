@@ -1,6 +1,6 @@
 ---
 - name: Deploy dos Serviços do Data Center (Docker Compose)
-  hosts: servidores
+  hosts: all
   become: yes
 
   tasks:
