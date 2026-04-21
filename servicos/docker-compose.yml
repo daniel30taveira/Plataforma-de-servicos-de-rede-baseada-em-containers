@@ -1,8 +1,8 @@
 version: '3.8'
 
 services:
-  # Reverse Proxy / Servidor Web
-proxy_web:
+  # O nosso Reverse Proxy / Servidor Web
+  proxy_web:
     image: nginx:latest
     container_name: nginx_proxy
     restart: unless-stopped
@@ -10,7 +10,7 @@ proxy_web:
       - "80:80"
       - "443:443"
     volumes:
-      - ./web:/usr/share/nginx/html:ro # Injeta a pasta web para dentro do Nginx (Read-Only como prática de segurança)
+      - ./web:/usr/share/nginx/html:ro
     networks:
       - rede_interna
 
