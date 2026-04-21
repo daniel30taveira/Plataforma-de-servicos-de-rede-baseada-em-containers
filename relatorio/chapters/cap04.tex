@@ -121,3 +121,18 @@ Após a configuração das devidas permissões de sistema (permitindo ao utiliza
     \caption{Execução bem-sucedida da pipeline de CI/CD para o \textit{deploy} da infraestrutura.}
     \label{fig:pipeline_sucesso}
 \end{figure}
+
+\section{Implementação de Serviços: Servidor Web e Gestão de Volumes}
+
+Com a infraestrutura base e a \textit{pipeline} de CI/CD operacionais, procedeu-se à integração de um servidor Web e \textit{Reverse Proxy} baseado em Nginx.
+
+Para o fornecimento de conteúdo estático personalizado sem a necessidade de reconstruir a imagem do \textit{container} a cada alteração, utilizou-se o mecanismo de \textit{Volumes} do Docker. Este mecanismo permite mapear um diretório do sistema de ficheiros do \textit{host} diretamente para o interior do \textit{container}. 
+
+Do ponto de vista da segurança, e em estrito cumprimento com o Princípio do Mínimo Privilégio, o volume foi montado em modo \textit{Read-Only} (\texttt{:ro}). Esta configuração mitigadora garante que, mesmo num cenário hipotético de comprometimento do servidor Web, um atacante não conseguirá alterar, apagar ou injetar código malicioso nos ficheiros originais da plataforma. A Figura \ref{fig:pagina_web_nginx} demonstra o serviço a operar com sucesso.
+
+\begin{figure}[h!]
+    \centering
+    \includegraphics[width=0.9\textwidth]{pagina_web_nginx.png}
+    \caption{Página Web servida pelo Nginx através de um Volume Docker em modo \textit{Read-Only}.}
+    \label{fig:pagina_web_nginx}
+\end{figure}
