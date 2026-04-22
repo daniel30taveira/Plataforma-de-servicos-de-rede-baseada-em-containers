@@ -136,3 +136,19 @@ Do ponto de vista da segurança, e em estrito cumprimento com o Princípio do M�
     \caption{Página Web servida pelo Nginx através de um Volume Docker em modo \textit{Read-Only}.}
     \label{fig:pagina_web_nginx}
 \end{figure}
+
+
+\section{Observabilidade e Monitorização (Prometheus e Grafana)}
+
+Para cumprir o requisito de monitorização da infraestrutura, implementou-se uma \textit{stack} de observabilidade \textit{open source} baseada em \textit{containers}. A recolha de métricas de \textit{hardware} do servidor (utilização de CPU, memória RAM, I/O de disco e tráfego de rede) é assegurada pelo serviço \textit{Node Exporter}.
+
+Estes dados são periodicamente recolhidos (\textit{scraped}) e armazenados numa base de dados de séries temporais (\textit{Time-Series Database}), o Prometheus. Por fim, para a visualização dinâmica e análise em tempo real do estado do \textit{Data Center}, recorreu-se ao Grafana. 
+
+A Figura \ref{fig:grafana_dashboard} ilustra o painel central de administração do Grafana, evidenciando o consumo de recursos da máquina virtual através do processamento contínuo das métricas fornecidas pelo Prometheus.
+
+\begin{figure}[h!]
+    \centering
+    \includegraphics[width=0.9\textwidth]{grafana_dashboard.png}
+    \caption{Painel de controlo do Grafana exibindo as métricas do servidor em tempo real.}
+    \label{fig:grafana_dashboard}
+\end{figure}
