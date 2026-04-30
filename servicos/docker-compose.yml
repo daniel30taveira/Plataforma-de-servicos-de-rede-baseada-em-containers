@@ -81,7 +81,7 @@ services:
       - TZ=Europe/Lisbon
       - SERVERURL=2.80.141.30 # O IP do servidor Ubuntu
       - SERVERPORT=51821
-      - PEERS=1 # Cria 1 perfil (um QR Code para o telemóvel)
+      - PEERS=2 # Cria 2 perfis (dois QR Codes para o telemóvel e computador portatil neste caso)
       - PEERDNS=192.168.1.252 # IMPORTANTE: Obriga a VPN a usar o Pi-hole
       - INTERNAL_SUBNET=10.13.13.0
       - ALLOWEDIPS=0.0.0.0/0
