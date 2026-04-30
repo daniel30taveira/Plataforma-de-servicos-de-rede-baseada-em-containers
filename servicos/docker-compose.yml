@@ -79,8 +79,8 @@ services:
       - PUID=1000
       - PGID=1000
       - TZ=Europe/Lisbon
-      - SERVERURL=2.80.141.30 # O IP do servidor Ubuntu
-      - SERVERPORT=51821
+      - SERVERURL=2.83.165.235 # O IP do servidor Ubuntu
+      - SERVERPORT=51820
       - PEERS=2 # Cria 2 perfis (dois QR Codes para o telemóvel e computador portatil neste caso)
       - PEERDNS=192.168.1.252 # IMPORTANTE: Obriga a VPN a usar o Pi-hole
       - INTERNAL_SUBNET=10.13.13.0
@@ -88,7 +88,7 @@ services:
     volumes:
       - ./wireguard:/config
     ports:
-      - "51821:51821/udp"
+      - "51820:51820/udp"
     sysctls:
       - net.ipv4.conf.all.src_valid_mark=1
     restart: unless-stopped
@@ -99,4 +99,4 @@ services:
 # Uma rede isolada para os containers comunicarem de forma segura:
 networks:
   rede_interna:
-    driver: bridge
+    drive
