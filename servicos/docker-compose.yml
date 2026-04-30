@@ -65,7 +65,38 @@ services:
     networks:
       - rede_interna
 
-# Criei uma rede isolada para os containers comunicarem de forma segura
+
+
+
+# VPN (WireGuard)
+  wireguard:
+    image: lscr.io/linuxserver/wireguard:latest
+    container_name: wireguard
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Lisbon
+      - SERVERURL=192.168.1.252 # O IP do servidor Ubuntu
+      - SERVERPORT=51820
+      - PEERS=1 # Cria 1 perfil (um QR Code para o telemóvel)
+      - PEERDNS=192.168.1.252 # IMPORTANTE: Obriga a VPN a usar o Pi-hole
+      - INTERNAL_SUBNET=10.13.13.0
+      - ALLOWEDIPS=0.0.0.0/0
+    volumes:
+      - ./wireguard:/config
+    ports:
+      - "51820:51820/udp"
+    sysctls:
+      - net.ipv4.conf.all.src_valid_mark=1
+    restart: unless-stopped
+    networks:
+      - rede_interna
+
+
+# Uma rede isolada para os containers comunicarem de forma segura:
 networks:
   rede_interna:
     driver: bridge
