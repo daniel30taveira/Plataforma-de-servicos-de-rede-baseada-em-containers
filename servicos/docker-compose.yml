@@ -99,4 +99,4 @@ services:
 # Uma rede isolada para os containers comunicarem de forma segura:
 networks:
   rede_interna:
-    drive
+    driver: bridge
