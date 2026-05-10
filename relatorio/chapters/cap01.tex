@@ -1,21 +1,50 @@
 \chapter{Introdução}
 \label{chap:introducao}
 
-A administração de sistemas e redes tem sofrido uma evolução drástica nos últimos anos. A necessidade de implementar e gerir serviços de forma rápida, segura e sem interrupções impulsionou a adoção de tecnologias de \textit{containerização} e práticas de automação de infraestruturas.
+A administração de sistemas e redes atravessa uma transformação profunda, impulsionada pela crescente exigência de disponibilidade contínua, escalabilidade e rastreabilidade das infraestruturas tecnológicas. A necessidade de implementar e gerir serviços de forma rápida, reprodutível e resistente a falhas humanas impulsionou a adoção em larga escala de tecnologias de \textit{containerização} e da filosofia de \textit{Infrastructure as Code} (IaC) \cite{morris2016infrastructure}.
 
 \section{Contextualização e Motivação}
-Numa infraestrutura tecnológica de pequena ou média dimensão, a gestão manual de múltiplos serviços (como DNS, \textit{web}, \textit{proxies} e VPNs) torna-se insustentável a longo prazo, sendo propensa a erros humanos e dificultando a recuperação em caso de falhas. A adoção do paradigma de "Infraestrutura como Código" (IaC) e de arquiteturas baseadas em \textit{containers} permite mitigar estes problemas, oferecendo ambientes isolados, padronizados e facilmente replicáveis.
+
+Numa infraestrutura tecnológica de pequena ou média dimensão --- contexto comum em instituições de ensino, PMEs ou laboratórios de investigação ---, a gestão manual e ad-hoc de serviços críticos como DNS, \textit{reverse proxies}, VPNs ou servidores de ficheiros revela-se insustentável a longo prazo. Cada intervenção manual representa um risco de inconsistência: um ficheiro de configuração alterado sem versionamento, uma dependência instalada fora do contexto correto, ou um serviço reposto com parâmetros diferentes dos originais são erros frequentes em ambientes não automatizados.
+
+A motivação deste projeto nasceu precisamente desta realidade. Ao longo do processo de implementação, foi possível constatar em primeira mão como a ausência de automação agrava os tempos de recuperação após falhas: por exemplo, a simples reinicialização do \textit{router} da rede local foi suficiente para derrubar a conectividade da máquina virtual (VM), exigindo uma intervenção manual de diagnóstico e reconfiguração que, num ambiente automatizado e bem documentado, teria sido evitada ou resolvida em segundos. Este tipo de incidente, que será detalhado no Capítulo \ref{chap:implementacao}, ilustra a relevância prática dos objetivos deste projeto.
+
+O paradigma de \textit{containerização}, em particular através de tecnologias como o Docker, oferece uma resposta concreta a estes desafios: as aplicações e os seus serviços são encapsulados em unidades portáteis e isoladas (\textit{containers}), com as suas dependências declaradas de forma explícita, garantindo que o ambiente de execução é consistente independentemente do \textit{host} físico onde corre \cite{docker_docs}. Complementarmente, a automação de configuração com ferramentas como o Ansible e a integração de \textit{pipelines} de CI/CD permitem que qualquer alteração à infraestrutura seja testada, auditada e aplicada de forma controlada \cite{humble2010continuous}.
 
 \section{Objetivos}
-O objetivo central deste projeto é construir uma plataforma de serviços de rede baseada em \textit{containers} e orquestração leve, focada em boas práticas de segurança, CI/CD (\textit{Continuous Integration / Continuous Deployment}) e observabilidade. 
 
-De forma mais específica, pretende-se:
+O objetivo central deste projeto é construir, configurar e documentar uma plataforma de serviços de rede baseada em \textit{containers}, com orquestração leve (Docker Compose), focada em boas práticas de segurança, CI/CD e observabilidade.
+
+De forma mais específica, os objetivos operacionais do projeto são os seguintes:
+
 \begin{itemize}
-    \item Implementar serviços típicos de rede (DNS, \textit{Reverse Proxy} HTTPS, \textit{Web}, E-mail, Servidor de Ficheiros e VPN) em \textit{containers} (Docker/Podman).
-    \item Demonstrar a gestão de um pequeno \textit{data center} de forma totalmente reprodutível utilizando apenas ferramentas \textit{open source}.
-    \item Integrar mecanismos de observabilidade para a recolha de métricas e \textit{logs} centralizados.
-    \item Automatizar a configuração e o \textit{deploy} com recurso a Ansible e a uma \textit{pipeline} simples de CI/CD.
+    \item \textbf{Implementar serviços típicos de rede em \textit{containers}:} servidor DNS (Pi-hole), \textit{Reverse Proxy} HTTPS (Nginx), servidor Web estático (Nginx), VPN (WireGuard) e \textit{stack} de monitorização (Prometheus, Node Exporter, Grafana).
+    
+    \item \textbf{Garantir reprodutibilidade total da infraestrutura:} toda a configuração --- desde a instalação do Docker até ao \textit{deploy} dos serviços --- deve poder ser recriada a partir do repositório Git sem qualquer intervenção manual adicional, seguindo o princípio de \textit{Single Source of Truth} \cite{morris2016infrastructure}.
+    
+    \item \textbf{Aplicar boas práticas de segurança:} volumes em modo \textit{read-only}, isolamento de serviços em rede interna, gestão de segredos por variáveis de ambiente, e encriptação de tráfego (TLS/WireGuard).
+    
+    \item \textbf{Automatizar o \textit{deploy} com Ansible e CI/CD:} qualquer \textit{commit} na \textit{branch} principal do repositório GitLab deve despoletar automaticamente o \textit{deploy} da infraestrutura, sem intervenção humana.
+    
+    \item \textbf{Integrar observabilidade centralizada:} recolha contínua de métricas de \textit{hardware} (CPU, RAM, I/O, rede) e visualização em painéis Grafana, permitindo detetar anomalias de forma proativa.
+    
+    \item \textbf{Documentar o processo de \textit{troubleshooting}:} registar e analisar os erros reais encontrados durante a implementação, demonstrando o raciocínio técnico aplicado na sua resolução.
 \end{itemize}
 
+\section{Metodologia}
+
+A abordagem metodológica seguida neste projeto assenta em três pilares complementares. Em primeiro lugar, adotou-se uma estratégia incremental: os serviços foram implementados por camadas, começando pela base (sistema operativo e Docker), passando pelos serviços de rede (DNS, Web, VPN) e terminando na observabilidade e automação CI/CD. Esta ordem garante que cada camada superior pôde ser validada antes de avançar.
+
+Em segundo lugar, toda a configuração foi versionada em Git desde o início, o que permitiu rastrear cada alteração e reverter configurações problemáticas de forma controlada. Por fim, os erros e os processos de \textit{troubleshooting} foram documentados no momento em que ocorreram, preservando o contexto técnico necessário para a sua análise posterior.
+
 \section{Estrutura do Documento}
-O presente relatório encontra-se organizado da seguinte forma: o Capítulo 2 apresenta o Estado da Arte das tecnologias envolvidas; o Capítulo 3 detalha o levantamento das necessidades funcionais e a escolha do ambiente base; o Capítulo 4 descreve a arquitetura e implementação da plataforma; o Capítulo 5 aborda os testes e resultados obtidos; por fim, o Capítulo 6 sintetiza as conclusões do trabalho.
+
+O presente relatório está organizado da seguinte forma:
+
+\begin{itemize}
+    \item \textbf{Capítulo \ref{chap:estado_arte} --- Estado da Arte:} revisão das tecnologias envolvidas, com base em documentação oficial e literatura técnica, contextualizando as opções tomadas.
+    \item \textbf{Capítulo \ref{chap:necessidades} --- Levantamento das Necessidades:} análise dos requisitos funcionais e não-funcionais da plataforma, e justificação das escolhas de ambiente.
+    \item \textbf{Capítulo \ref{chap:implementacao} --- Arquitetura e Implementação:} descrição detalhada do processo de implementação, incluindo configurações, listagens de código e documentação dos problemas encontrados.
+    \item \textbf{Capítulo \ref{cap:test} --- Testes e Avaliação:} validação dos serviços implementados e discussão dos resultados.
+    \item \textbf{Capítulo \ref{cap:conclusions} --- Conclusões:} síntese do trabalho realizado, análise crítica e propostas de trabalho futuro.
+\end{itemize}

@@ -1,3 +1,46 @@
-\chapter{Conclusões}\label{cap:conclusions}
+\chapter{Conclusões}
+\label{cap:conclusions}
 
-As conclusões devem sintetizar e proporcionar uma perspetiva unificadora ao trabalho efetuado. Poderá ser feita uma breve referência a trabalhos de outros com semelhanças ao efetuado e ao conhecimento que resultou do trabalho efetuado, bem como sugestões de trabalho futuro. A coerência do documento implica que as conclusões devem ser coerentes com as ideias expostas na introdução.
+\section{Síntese do Trabalho Realizado}
+
+Este projeto teve como objetivo central demonstrar que é possível gerir uma infraestrutura de serviços de rede de forma totalmente automatizada, reprodutível e segura, utilizando exclusivamente ferramentas \textit{open source}. O resultado final é uma plataforma funcional que corre numa máquina virtual Ubuntu Server 24.04 LTS, orquestrando múltiplos serviços em \textit{containers} Docker: um servidor DNS (Pi-hole), um servidor Web e \textit{reverse proxy} (Nginx), uma VPN (WireGuard) e uma \textit{stack} de observabilidade (Prometheus, Node Exporter e Grafana).
+
+Do ponto de vista técnico, o projeto atingiu os seus objetivos principais. A infraestrutura é definida integralmente em código (ficheiros YAML do Docker Compose e \textit{Playbooks} Ansible), versionada no GitLab e implantada automaticamente a cada \textit{commit} pela \textit{pipeline} de CI/CD. Qualquer falha catastrófica no servidor poderia ser recuperada em poucos minutos, bastando provisionar uma nova VM e executar os \textit{Playbooks} Ansible --- uma garantia que, em infraestruturas geridas manualmente, simplesmente não existe.
+
+\section{Aprendizagens e Contribuições}
+
+O processo de implementação revelou que os maiores desafios técnicos raramente surgem da configuração dos serviços em si, mas sim das interações entre camadas distintas da infraestrutura. Os três problemas mais significativos --- o \textit{bridging} incorreto do VMware (Secção \ref{sec:vmware_bridging}), os erros de indentação YAML no Netplan (Secção \ref{sec:netplan}) e o bloqueio do tráfego WireGuard pelo \textit{router} (Secção \ref{sec:wireguard_debug}) --- ilustram bem esta realidade: cada um exigiu um raciocínio estruturado de diagnóstico em camadas, eliminando hipóteses uma a uma até identificar a causa raiz.
+
+A utilização do \texttt{tcpdump} para diagnosticar o problema do WireGuard foi particularmente elucidativa: ao constatar que zero pacotes chegavam à interface de rede do servidor, foi possível descartar imediatamente qualquer problema na configuração do \textit{container} ou do protocolo, e focar o diagnóstico na camada de rede externa (o \textit{router}). Esta abordagem metódica --- observar antes de agir --- é um princípio fundamental da administração de sistemas que este projeto ajudou a consolidar.
+
+A integração do Ansible com a \textit{pipeline} GitLab CI/CD demonstrou, de forma prática, como a filosofia de \textit{Infrastructure as Code} elimina a dicotomia entre o que está documentado e o que está realmente instalado \cite{morris2016infrastructure}. O repositório Git é, simultaneamente, a documentação e o estado real da infraestrutura.
+
+\section{Comparação com Trabalhos Relacionados}
+
+A abordagem adotada neste projeto partilha a filosofia de orquestração leve com outras soluções documentadas na literatura e na comunidade técnica. Em comparação com arquiteturas baseadas em Kubernetes \cite{docker_docs}, a solução Docker Compose apresenta menor complexidade operacional e é mais adequada para ambientes de pequena escala, como o laboratório académico. Para contextos com dezenas ou centenas de serviços e requisitos de \textit{auto-scaling}, o Kubernetes seria a escolha natural --- mas introduz uma curva de aprendizagem e uma sobrecarga de gestão que não se justificam neste cenário.
+
+A escolha do WireGuard em detrimento do OpenVPN, fundamentada nas propriedades criptográficas e na reduzida base de código apresentadas por Donenfeld \cite{donenfeld2017wireguard}, revelou-se acertada: a configuração foi significativamente mais simples e o desempenho do túnel visivelmente superior em testes subjetivos de latência.
+
+\section{Trabalho Futuro}
+
+Com base na análise crítica dos resultados apresentada no Capítulo \ref{cap:test}, identificam-se as seguintes linhas de trabalho futuro:
+
+\begin{itemize}
+    \item \textbf{HTTPS com Let's Encrypt:} Implementar terminação TLS no Nginx utilizando certificados gratuitos do \textit{Let's Encrypt}, via \texttt{certbot} ou integração com \textbf{Traefik} como \textit{reverse proxy} alternativo com gestão automática de certificados \cite{rfc8446}.
+
+    \item \textbf{Gestão de segredos com Ansible Vault:} Migrar as palavras-passe atualmente em texto simples no \texttt{docker-compose.yml} para o sistema de encriptação \textbf{Ansible Vault}, garantindo que segredos nunca são armazenados em claro no repositório \cite{ansible_docs}.
+
+    \item \textbf{Centralização de \textit{logs} com Loki:} Adicionar o \textbf{Grafana Loki} à \textit{stack} de observabilidade para centralizar os \textit{logs} de todos os \textit{containers}, complementando as métricas do Prometheus com informação de eventos \cite{grafana_docs}.
+
+    \item \textbf{Servidor de e-mail:} Implementar um servidor de e-mail completo (SMTP/IMAP) com o \textbf{docker-mailserver} ou \textbf{Mailcow}, incluindo os registos DNS necessários (SPF, DKIM, DMARC) para garantir a entregabilidade.
+
+    \item \textbf{Servidor de ficheiros com Nextcloud:} Implementar uma instância \textbf{Nextcloud} em \textit{container} para disponibilizar partilha de ficheiros e colaboração, completando o conjunto de serviços originalmente proposto.
+
+    \item \textbf{Alertas automáticos:} Configurar regras de alerta no Grafana (utilização de CPU superior a 85\%, memória RAM disponível inferior a 500 MB, \textit{targets} Prometheus em estado \textit{down}) com notificações por e-mail ou Telegram \cite{grafana_docs}.
+
+    \item \textbf{Monitorização de segurança com Fail2ban:} Integrar o \textbf{Fail2ban} para detetar e bloquear automaticamente tentativas de acesso SSH por força bruta, complementando as medidas de \textit{hardening} já implementadas \cite{nist_containers}.
+\end{itemize}
+
+\section{Considerações Finais}
+
+Este projeto demonstrou que a gestão profissional de infraestruturas de rede já não é exclusiva de grandes organizações com equipas dedicadas. As ferramentas \textit{open source} disponíveis atualmente --- Docker, Ansible, GitLab, Prometheus, WireGuard --- são suficientemente maduras e bem documentadas para permitir que um único administrador de sistemas, com os conhecimentos técnicos adequados, construa e opere uma plataforma de serviços de rede robusta, segura e totalmente automatizada. O principal obstáculo não é tecnológico, mas metodológico: adotar desde o início a disciplina de versionamento, configuração declarativa e documentação sistemática dos problemas encontrados.
