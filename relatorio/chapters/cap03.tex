@@ -5,7 +5,23 @@ Com base no guião do projeto proposto, o objetivo central consiste na criação
 
 \section{Serviços de Rede a Disponibilizar}
 
-A infraestrutura deve contemplar um conjunto de serviços típicos de uma rede de pequena/média dimensão. A Tabela \ref{tab:servicos} apresenta os serviços a implementar, a ferramenta escolhida para cada um e a justificação técnica da escolha.
+A infraestrutura deve contemplar um conjunto de serviços típicos de uma rede de pequena/média dimensão.
+
+De forma mais detalhada, os requisitos funcionais de cada serviço são os seguintes:
+
+\begin{itemize}
+    \item \textbf{Servidor DNS:} Resolução de nomes para os hosts e serviços da rede interna; funcionamento em modo recursivo (reencaminhamento para servidores \textit{upstream} públicos para domínios externos); interface de administração acessível por HTTP.
+
+    \item \textbf{\textit{Reverse Proxy} HTTPS:} Ponto de entrada único na rede; encaminhamento de pedidos HTTP/HTTPS para os serviços internos corretos com base no nome de domínio ou no caminho do pedido; terminação TLS centralizada.
+
+    \item \textbf{Servidor Web:} Disponibilização de uma página de estado da infraestrutura, servida através do Nginx com conteúdo injetado por volume Docker.
+
+    \item \textbf{VPN (WireGuard):} Acesso remoto seguro à rede interna de \textit{containers} a partir de dispositivos externos (computador portátil e telemóvel); criação automática de perfis de cliente (QR codes para configuração no telemóvel).
+
+    \item \textbf{Monitorização:} Recolha contínua de métricas de \textit{hardware} do servidor \textit{host} (CPU, RAM, I/O de disco, interfaces de rede); armazenamento em base de dados de séries temporais; visualização em painéis interativos.
+\end{itemize}
+
+A Tabela \ref{tab:servicos} apresenta os serviços a implementar, a ferramenta escolhida para cada um e a justificação técnica da escolha.
 
 \begin{table}[h!]
 \centering
@@ -30,20 +46,6 @@ Visualização & Grafana & Compatibilidade nativa com Prometheus; painéis pré-
 \end{tabulary}
 \end{table}
 
-De forma mais detalhada, os requisitos funcionais de cada serviço são os seguintes:
-
-\begin{itemize}
-    \item \textbf{Servidor DNS:} Resolução de nomes para os hosts e serviços da rede interna; funcionamento em modo recursivo (reencaminhamento para servidores \textit{upstream} públicos para domínios externos); interface de administração acessível por HTTP.
-
-    \item \textbf{\textit{Reverse Proxy} HTTPS:} Ponto de entrada único na rede; encaminhamento de pedidos HTTP/HTTPS para os serviços internos corretos com base no nome de domínio ou no caminho do pedido; terminação TLS centralizada.
-
-    \item \textbf{Servidor Web:} Disponibilização de uma página de estado da infraestrutura, servida através do Nginx com conteúdo injetado por volume Docker.
-
-    \item \textbf{VPN (WireGuard):} Acesso remoto seguro à rede interna de \textit{containers} a partir de dispositivos externos (computador portátil e telemóvel); criação automática de perfis de cliente (QR codes para configuração no telemóvel).
-
-    \item \textbf{Monitorização:} Recolha contínua de métricas de \textit{hardware} do servidor \textit{host} (CPU, RAM, I/O de disco, interfaces de rede); armazenamento em base de dados de séries temporais; visualização em painéis interativos.
-\end{itemize}
-
 \section{Requisitos Técnicos e de Arquitetura}
 
 Para além do correto funcionamento dos serviços, a plataforma tem de respeitar rigorosos critérios de implementação e gestão, tal como estabelecido no guião do projeto.
@@ -63,14 +65,14 @@ Para além do correto funcionamento dos serviços, a plataforma tem de respeitar
 Para suportar a plataforma e garantir o isolamento do \textit{host} físico, a infraestrutura base foi implementada em ambiente virtualizado.
 
 \begin{itemize}
-    \item \textbf{Virtualização (VMware Workstation):} A plataforma escolhida para o \textit{hypervisor} local é o VMware Workstation \cite{vmware_workstation}. Esta escolha justifica-se pela sua estabilidade, pela excelente gestão de redes virtuais (modos \textit{Bridged} e NAT) necessárias para simular tráfego externo/interno, e pela eficiência na alocação de recursos. O modo \textit{Bridged} foi o selecionado para este projeto, pois permite que a VM obtenha um endereço IP diretamente na rede física local, sendo acessível por todos os dispositivos da rede como se fosse uma máquina física real --- comportamento essencial para o funcionamento correto do DNS e da VPN.
+    \item \textbf{Virtualização (VMware Workstation):} A plataforma escolhida para o \textit{hypervisor} local é o VMware Workstation \cite{vmware_workstation}. Esta escolha justifica-se pela sua estabilidade, pela excelente gestão de redes virtuais (modos \textit{Bridged} e NAT) necessárias para simular tráfego externo/interno, e pela eficiência na alocação de recursos. O modo \textit{Bridged} foi o selecionado para este projeto, pois permite que a VM obtenha um endereço IP diretamente na rede física local, sendo acessível por todos os dispositivos da rede como se fosse uma máquina física real que é o comportamento essencial para o funcionamento correto do DNS e da VPN.
 
     \item \textbf{Sistema Operativo (\textit{Guest OS}):} Para o sistema operativo que aloja os \textit{containers}, optou-se pelo \textbf{Ubuntu Server 24.04 LTS} \cite{ubuntu_server}. Esta distribuição foi selecionada por possuir suporte de longo prazo (até 2029), excelente compatibilidade nativa com Docker e Ansible, e por não incluir interface gráfica (\textit{headless}), minimizando a superfície de ataque e o consumo de recursos da VM.
 \end{itemize}
 
 \subsection{Configuração de Rede do Servidor}
 
-A configuração de rede do Ubuntu Server 24.04 é gerida pelo \textbf{Netplan} \cite{netplan_docs}, um sistema de configuração de rede declarativo que gera configurações para o \textit{backend} \texttt{networkd} ou \texttt{NetworkManager}. Para garantir que o servidor mantém sempre o mesmo endereço IP --- condição essencial para o correto funcionamento do DNS e da VPN ---, optou-se por configurar um IP estático (\texttt{192.168.1.252}) em vez de depender de DHCP.
+A configuração de rede do Ubuntu Server 24.04 é gerida pelo \textbf{Netplan} \cite{netplan_docs}, um sistema de configuração de rede declarativo que gera configurações para o \textit{backend} \texttt{networkd} ou \texttt{NetworkManager}. Para garantir que o servidor mantém sempre o mesmo endereço IP que é condição essencial para o correto funcionamento do DNS e da VPN, optou-se por configurar um IP estático (\texttt{192.168.1.252}) em vez de depender de DHCP.
 
 A configuração da rede é definida em \texttt{/etc/netplan/00-installer-config.yaml} e, após validação com \texttt{netplan try}, aplicada com \texttt{netplan apply}. O Capítulo \ref{chap:implementacao} detalha os erros encontrados durante este processo e as soluções aplicadas.
 

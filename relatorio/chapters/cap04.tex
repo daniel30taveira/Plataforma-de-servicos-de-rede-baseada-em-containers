@@ -33,7 +33,7 @@ Após a instalação, o primeiro passo foi verificar a conectividade de rede e o
 \subsection{Configuração de IP Estático com Netplan}
 \label{sec:netplan}
 
-Para garantir que o servidor mantém sempre o mesmo endereço IP na rede local --- condição essencial para o correto funcionamento do DNS, da VPN e das entradas do inventário Ansible ---, procedeu-se à configuração de um IP estático através do Netplan \cite{netplan_docs}.
+Para garantir que o servidor mantém sempre o mesmo endereço IP na rede local sendo uma condição essencial para o correto funcionamento do DNS, da VPN e das entradas do inventário Ansible, procedeu-se à configuração de um IP estático através do Netplan \cite{netplan_docs}.
 
 \subsubsection*{Problema Encontrado: Erros de Indentação YAML e Falhas de DNS}
 
@@ -46,7 +46,7 @@ Durante a configuração, foram cometidos dois erros distintos:
     \begin{lstlisting}[language=bash, frame=single, breaklines=true]
 Invalid YAML at /etc/netplan/00-installer-config.yaml
     \end{lstlisting}
-    O problema foi diagnosticado com o comando \texttt{netplan try}, que aplica a configuração temporariamente durante 120 segundos e reverte automaticamente se não for confirmada --- mecanismo de segurança crucial para evitar perda de acesso remoto ao servidor.
+    O problema foi diagnosticado com o comando \texttt{netplan try}, que aplica a configuração temporariamente durante 120 segundos e reverte automaticamente se não for confirmada sendo um mecanismo de segurança crucial para evitar perda de acesso remoto ao servidor.
 
     \item \textbf{Falha de resolução DNS:} Após corrigir a indentação e aplicar o IP estático, o servidor perdeu capacidade de resolução de nomes de domínio. A causa foi a omissão dos servidores \texttt{nameservers} na configuração Netplan. O servidor tentava resolver nomes através de si próprio (o Pi-hole ainda não estava instalado), resultando em falhas de DNS. A solução imediata foi adicionar explicitamente os servidores DNS do Google (\texttt{8.8.8.8} e \texttt{8.8.4.4}) na configuração Netplan, até o Pi-hole estar operacional.
 \end{enumerate}
@@ -148,7 +148,7 @@ A Figura \ref{fig:ansible_sucesso} ilustra o \textit{Play Recap} de uma execuç�
 \begin{figure}[h!]
     \centering
     \includegraphics[width=0.9\textwidth]{ansible_sucesso.png}
-    \caption{Execução bem-sucedida do \textit{Playbook} \texttt{setup\_docker.yml} --- \textit{Play Recap} com \texttt{failed=0}.}
+    \caption{Execução bem-sucedida do \textit{Playbook} \texttt{setup\_docker.yml} - \textit{Play Recap} com \texttt{failed=0}.}
     \label{fig:ansible_sucesso}
 \end{figure}
 
@@ -213,7 +213,7 @@ O WireGuard foi implementado utilizando a imagem \texttt{lscr.io/linuxserver/wir
 
 \begin{itemize}
     \item \texttt{SERVERURL=2.83.165.235}: IP público do servidor, necessário para que os clientes externos saibam para onde se ligar.
-    \item \texttt{SERVERPORT=51821}: porta UDP utilizada pelo WireGuard nesta instalação. A porta padrão (51820) foi alterada para 51821 após se detetar um conflito com outro serviço no \textit{router} MEO, que filtrava especificamente essa porta --- este ajuste foi registado no repositório com a mensagem de \textit{commit} \texttt{fix: muda porta da VPN para 51821 devido a conflito no router} (30 de abril de 2026).
+    \item \texttt{SERVERPORT=51821}: porta UDP utilizada pelo WireGuard nesta instalação. A porta padrão (51820) foi alterada para 51821 após se detetar um conflito com outro serviço no \textit{router} MEO, que filtrava especificamente essa porta este ajuste foi registado no repositório com a mensagem de \textit{commit} \texttt{fix: muda porta da VPN para 51821 devido a conflito no router} (30 de abril de 2026).
     \item \texttt{PEERS=3}: gera automaticamente três perfis de cliente, incluindo ficheiros de configuração e QR codes. O número de \textit{peers} foi aumentado de 2 para 3 numa iteração posterior (\textit{commit} \texttt{feat: atualiza IP publico e aumenta peers da VPN}), para acomodar um dispositivo adicional.
     \item \texttt{PEERDNS=192.168.1.252}: obriga os clientes VPN a utilizar o Pi-hole como servidor DNS quando ligados, garantindo que o bloqueio de domínios e a resolução de nomes internos funcionam também em modo VPN.
     \item \texttt{ALLOWEDIPS=0.0.0.0/0}: todo o tráfego do cliente é encaminhado pelo túnel VPN (\textit{full tunnel}), garantindo que nenhum tráfego escapa sem encriptação.
@@ -274,7 +274,7 @@ Após o reinício físico do \textit{router}, repetiu-se o \texttt{tcpdump}: os 
 
 \subsection{Configuração do GitLab Runner}
 
-Para implementar a \textit{pipeline} de CI/CD, foi necessário instalar um \textit{GitLab Runner} no próprio servidor Ubuntu \cite{gitlab_cicd}. A opção por um \textit{runner} local justifica-se pela arquitetura de rede: o servidor encontra-se numa rede privada, inacessível diretamente pelos \textit{runners} partilhados da plataforma GitLab. O modelo \textit{Pull} — onde o \textit{Runner} interpela periodicamente o servidor GitLab para obter novos \textit{jobs} --- resolve este problema sem expor o servidor à Internet.
+Para implementar a \textit{pipeline} de CI/CD, foi necessário instalar um \textit{GitLab Runner} no próprio servidor Ubuntu \cite{gitlab_cicd}. A opção por um \textit{runner} local justifica-se pela arquitetura de rede: o servidor encontra-se numa rede privada, inacessível diretamente pelos \textit{runners} partilhados da plataforma GitLab. O modelo \textit{Pull}  (onde o \textit{Runner} interpela periodicamente o servidor GitLab para obter novos \textit{jobs}) resolve este problema sem expor o servidor à Internet.
 
 O \textit{Runner} foi instalado e registado com o executor \texttt{shell}:
 
@@ -332,7 +332,7 @@ A Figura \ref{fig:pipeline_sucesso} demonstra a execução completa e bem-sucedi
 \begin{figure}[h!]
     \centering
     \includegraphics[width=0.9\textwidth]{pipeline_sucesso.png}
-    \caption{Execução bem-sucedida da \textit{pipeline} de CI/CD --- \textit{deploy} automático da infraestrutura a partir de um \textit{commit}.}
+    \caption{Execução bem-sucedida da \textit{pipeline} de CI/CD - \textit{deploy} automático da infraestrutura a partir de um \textit{commit}.}
     \label{fig:pipeline_sucesso}
 \end{figure}
 
