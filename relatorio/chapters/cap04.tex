@@ -1,58 +1,52 @@
 \chapter{Arquitetura e Implementação}
 \label{chap:implementacao}
-
+ 
 Este capítulo detalha o processo prático de implementação da plataforma de serviços de rede, descrevendo não apenas as configurações finais, mas também os problemas reais encontrados e o raciocínio técnico aplicado na sua resolução. A abordagem adotada seguiu as melhores práticas de \textit{Infrastructure as Code} (IaC), garantindo que todo o ambiente pudesse ser reconstruído de forma automatizada e previsível \cite{morris2016infrastructure}.
-
+ 
 \section{Arquitetura Geral da Plataforma}
-
+ 
 Antes de detalhar a implementação, importa descrever a arquitetura global da plataforma. Esta organiza-se em três camadas hierárquicas com responsabilidades bem definidas:
-
+ 
 \begin{enumerate}
     \item \textbf{Camada de infraestrutura:} a máquina física Windows com VMware Workstation a correr uma VM Ubuntu Server 24.04 LTS em modo \textit{Bridged} na rede local.
     \item \textbf{Camada de serviços:} os \textit{containers} Docker (Nginx, Pi-hole, WireGuard, Prometheus, Node Exporter, Grafana) a comunicar através de uma rede interna Docker (\texttt{rede\_interna}).
     \item \textbf{Camada de automação:} o Ansible (executado via WSL na máquina Windows) e a \textit{pipeline} GitLab CI/CD (executada pelo Runner instalado no servidor Ubuntu).
 \end{enumerate}
-
+ 
 Todo o tráfego externo entra pelo Nginx nas portas 80/443, ou diretamente pelo WireGuard na porta UDP 51821. Os serviços internos comunicam exclusivamente através da rede Docker \texttt{bridge} isolada, sem exposição desnecessária de portas ao exterior.
-
+ 
 \section{Configuração do Ambiente Base (Ubuntu Server)}
-
+ 
 \subsection{Instalação e Configuração Inicial}
-
-O Ubuntu Server 24.04 LTS foi instalado numa VM VMware com as seguintes especificações: 2 vCPUs, 4 GB de RAM e 50 GB de disco. A interface de rede foi configurada em modo \textit{Bridged} no VMware, o que permite à VM participar diretamente na rede local e obter um endereço IP nessa gama.
-
-Após a instalação, o primeiro passo foi verificar a conectividade de rede e o endereço IP atribuído, conforme ilustrado na Figura \ref{fig:ubuntu_ip}.
-
-\begin{figure}[h!]
+ 
+O Ubuntu Server 24.04 LTS foi instalado numa VM VMware com as seguintes especificações: 2 vCPUs, 4 GB de RAM e 50 GB de disco. A interface de rede foi configurada em modo \textit{Bridged} no VMware, o que permite à VM participar diretamente na rede local e obter um endereço IP nessa gama. Após a instalação, o primeiro passo foi verificar a conectividade de rede e o endereço IP atribuído, conforme ilustrado na Figura~\ref{fig:ubuntu_ip}. O acesso remoto por SSH é fundamental, pois permite operar o servidor de forma \textit{headless} a partir do terminal WSL na máquina Windows.
+ 
+\begin{figure}[htbp]
     \centering
     \includegraphics[width=0.85\textwidth]{ubuntu_ip.png}
     \caption{Verificação do endereço IP e acesso SSH inicial ao Ubuntu Server 24.04 LTS.}
     \label{fig:ubuntu_ip}
 \end{figure}
-
+ 
 \subsection{Configuração de IP Estático com Netplan}
 \label{sec:netplan}
-
-Para garantir que o servidor mantém sempre o mesmo endereço IP na rede local sendo uma condição essencial para o correto funcionamento do DNS, da VPN e das entradas do inventário Ansible, procedeu-se à configuração de um IP estático através do Netplan \cite{netplan_docs}.
-
+ 
+Para garantir que o servidor mantém sempre o mesmo endereço IP na rede local --- condição essencial para o correto funcionamento do DNS, da VPN e das entradas do inventário Ansible ---, procedeu-se à configuração de um IP estático através do Netplan \cite{netplan_docs}.
+ 
 \subsubsection*{Problema Encontrado: Erros de Indentação YAML e Falhas de DNS}
-
+ 
 A configuração do Netplan revelou-se o primeiro obstáculo técnico significativo do projeto. O ficheiro de configuração \texttt{/etc/netplan/00-installer-config.yaml} utiliza o formato YAML, que é extremamente sensível à indentação: um espaço extra ou a substituição de espaços por tabulações resulta num erro de \textit{parse} que impede a aplicação da configuração.
-
+ 
 Durante a configuração, foram cometidos dois erros distintos:
-
+ 
 \begin{enumerate}
-    \item \textbf{Erro de indentação:} A secção \texttt{nameservers} foi indentada ao nível errado (ao nível de \texttt{ethernets} em vez de ao nível da interface específica), resultando no erro:
-    \begin{lstlisting}[language=bash, frame=single, breaklines=true]
-Invalid YAML at /etc/netplan/00-installer-config.yaml
-    \end{lstlisting}
-    O problema foi diagnosticado com o comando \texttt{netplan try}, que aplica a configuração temporariamente durante 120 segundos e reverte automaticamente se não for confirmada sendo um mecanismo de segurança crucial para evitar perda de acesso remoto ao servidor.
-
-    \item \textbf{Falha de resolução DNS:} Após corrigir a indentação e aplicar o IP estático, o servidor perdeu capacidade de resolução de nomes de domínio. A causa foi a omissão dos servidores \texttt{nameservers} na configuração Netplan. O servidor tentava resolver nomes através de si próprio (o Pi-hole ainda não estava instalado), resultando em falhas de DNS. A solução imediata foi adicionar explicitamente os servidores DNS do Google (\texttt{8.8.8.8} e \texttt{8.8.4.4}) na configuração Netplan, até o Pi-hole estar operacional.
+    \item \textbf{Erro de indentação:} A secção \texttt{nameservers} foi indentada ao nível errado, resultando no erro \texttt{Invalid YAML at /etc/netplan/00-installer-config.yaml}. O problema foi diagnosticado com o comando \texttt{netplan try}, que aplica a configuração temporariamente durante 120 segundos e reverte automaticamente se não for confirmada --- mecanismo de segurança crucial para evitar perda de acesso remoto ao servidor.
+ 
+    \item \textbf{Falha de resolução DNS:} Após corrigir a indentação e aplicar o IP estático, o servidor perdeu capacidade de resolução de nomes de domínio. A causa foi a omissão dos \texttt{nameservers} na configuração. O servidor tentava resolver nomes através de si próprio (o Pi-hole ainda não estava instalado), resultando em falhas de DNS. A solução imediata foi adicionar explicitamente os servidores DNS do Google (\texttt{8.8.8.8} e \texttt{8.8.4.4}) na configuração Netplan, até o Pi-hole estar operacional.
 \end{enumerate}
-
+ 
 A configuração Netplan final, corretamente indentada, ficou com o seguinte aspeto:
-
+ 
 \begin{lstlisting}[language=bash, frame=single, breaklines=true, caption={Configura\c{c}\~ao Netplan para IP est\'atico}]
 network:
   version: 2
@@ -69,247 +63,156 @@ network:
           - 8.8.8.8
           - 8.8.4.4
 \end{lstlisting}
-
+ 
 \subsection{Problema de \textit{Bridging} no VMware}
 \label{sec:vmware_bridging}
-
+ 
 Um segundo problema de rede surgiu de forma intermitente após reinícios do \textit{router} da rede doméstica. A VM perdia subitamente a conectividade com a rede física, apesar do Netplan estar corretamente configurado.
-
-\subsubsection*{Diagnóstico}
-
-O diagnóstico começou por verificar o estado da interface de rede no servidor (\texttt{ip addr show ens33} e \texttt{ip route show}), que apresentava a configuração correta. O problema residia, portanto, na camada de virtualização, e não no sistema operativo convidado.
-
-Ao inspecionar o \textbf{VMware Virtual Network Editor} (ferramenta de gestão de redes virtuais do VMware, acessível em \textit{Edit > Virtual Network Editor}), identificou-se a causa: o VMware Workstation mantém uma lista de adaptadores de rede físicos disponíveis para o modo \textit{Bridged}, e após um reinício do \textit{router}, a ferramenta tinha reordenado os adaptadores e selecionado automaticamente um adaptador virtual do Windows (criado pelo \textbf{Hyper-V} ou pelo cliente \textbf{OpenVPN}) em vez da placa de rede física Realtek.
-
-Esta seleção incorreta significa que a VM tentava fazer a ponte de rede (\textit{bridge}) para um adaptador virtual sem ligação física real à rede, tornando-a invisível para os restantes dispositivos da LAN.
-
-\subsubsection*{Solução}
-
-A solução consistiu em forçar manualmente o VMware a utilizar o adaptador correto no Virtual Network Editor:
-
-\begin{enumerate}
-    \item Abrir o VMware Virtual Network Editor com privilégios de administrador (\textit{Change Settings}).
-    \item Selecionar a rede \texttt{VMnet0} (utilizada pelo modo \textit{Bridged}).
-    \item Em vez de \textit{Automatic}, selecionar explicitamente o adaptador físico \textbf{Realtek} (o adaptador Ethernet físico da máquina).
-    \item Aplicar as alterações e reiniciar a VM.
-\end{enumerate}
-
-% PRINT: vmware_network_editor.png
-% Como tirar: VMware Workstation > Edit > Virtual Network Editor
-% Mostrar a configuração com VMnet0 e o adaptador Realtek selecionado
-
+ 
+O diagnóstico começou por verificar o estado da interface de rede no servidor (\texttt{ip addr show ens33} e \texttt{ip route show}), que apresentava a configuração correta. O problema residia, portanto, na camada de virtualização. Ao inspecionar o \textbf{VMware Virtual Network Editor} (acessível em \textit{Edit > Virtual Network Editor}), identificou-se a causa: após um reinício do \textit{router}, a ferramenta tinha reordenado os adaptadores e selecionado automaticamente um adaptador virtual do Windows (criado pelo \textbf{Hyper-V} ou pelo cliente \textbf{OpenVPN}) em vez da placa de rede física Realtek, tornando a VM invisível na LAN.
+ 
+A solução consistiu em forçar manualmente o VMware a utilizar o adaptador correto: abrir o Virtual Network Editor com privilégios de administrador, selecionar a rede \texttt{VMnet0}, e em vez de \textit{Automatic}, selecionar explicitamente o adaptador físico \textbf{Realtek}. A Figura~\ref{fig:vmware_network_editor} ilustra a configuração correta.
+ 
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.85\textwidth]{vmware_network_editor.png}
+    \caption{VMware Virtual Network Editor com o adaptador Realtek selecionado manualmente para \texttt{VMnet0} (modo \textit{Bridged}).}
+    \label{fig:vmware_network_editor}
+\end{figure}
+ 
 Após esta correção, a VM passou a manter a conectividade de rede de forma estável, independentemente de reinícios do \textit{router}.
-
+ 
 \section{Automação com Ansible}
 \label{sec:ansible}
-
-\subsection{Estrutura do Controlo e do \textit{Managed Node}}
-
-Para cumprir o requisito de reprodutibilidade, todas as configurações e instalações no servidor foram realizadas exclusivamente através do Ansible, sem qualquer intervenção manual direta. O Ansible foi instalado no ambiente \textbf{WSL (Windows Subsystem for Linux)} \cite{wsl_docs} na máquina de administração Windows, dado que o Ansible não tem suporte nativo para Windows como \textit{control node}.
-
-O WSL fornece um ambiente Linux completo (Ubuntu 22.04) integrado no Windows, permitindo executar o Ansible e estabelecer ligações SSH ao servidor Ubuntu de forma transparente. A Figura \ref{fig:ansible_inventory} ilustra a estrutura do repositório e o ficheiro de inventário.
-
-\begin{figure}[h!]
+ 
+Para cumprir o requisito de reprodutibilidade, todas as configurações e instalações no servidor foram realizadas exclusivamente através do Ansible, sem qualquer intervenção manual direta. O Ansible foi instalado no ambiente \textbf{WSL (Windows Subsystem for Linux)} \cite{wsl_docs} na máquina de administração Windows, dado que o Ansible não tem suporte nativo para Windows como \textit{control node}. O ponto de partida da automação é o ficheiro de inventário (\texttt{inventory.ini}), onde se define o endereço IP e o utilizador de acesso ao servidor de destino, conforme ilustrado na Figura~\ref{fig:ansible_inventory}.
+ 
+\begin{figure}[htbp]
     \centering
     \includegraphics[width=0.85\textwidth]{ansible_inventory.png}
     \caption{Estrutura do repositório e ficheiro de inventário do Ansible (\texttt{inventory.ini}).}
     \label{fig:ansible_inventory}
 \end{figure}
-
-O ficheiro \texttt{inventory.ini} define o servidor de destino:
-
-\begin{lstlisting}[language=bash, frame=single, breaklines=true, caption={Ficheiro inventory.ini}]
-[servidores]
-meu_servidor ansible_host=192.168.1.252 ansible_user=daniel
-\end{lstlisting}
-
-\subsection{\textit{Playbook} de Instalação do Docker}
-
-O \textit{Playbook} \texttt{setup\_docker.yml} é responsável por preparar o servidor para receber os \textit{containers}. As suas tarefas são executadas com \texttt{become: yes} (equivalente a \texttt{sudo}), garantindo os privilégios necessários para instalação de pacotes de sistema \cite{ansible_docs}.
-
-As tarefas do \textit{Playbook} são executadas pela seguinte ordem:
-
-\begin{enumerate}
-    \item Atualização da \textit{cache} APT (\texttt{apt: update\_cache: yes}).
-    \item Instalação de dependências de sistema (\texttt{apt-transport-https}, \texttt{ca-certificates}, \texttt{curl}, \texttt{software-properties-common}).
-    \item Instalação do Docker Engine (\texttt{docker.io}) e do \textit{plugin} Docker Compose V2 (\texttt{docker-compose-v2}).
-    \item Ativação e início do \textit{daemon} Docker via \texttt{systemd}, com arranque automático no boot.
-    \item Adição do utilizador \texttt{daniel} ao grupo \texttt{docker}, implementando o princípio do mínimo privilégio: elimina a necessidade de usar \texttt{sudo} a cada comando Docker.
-\end{enumerate}
-
-A execução é iniciada com:
-
-\begin{lstlisting}[language=bash, frame=single, breaklines=true]
-ansible-playbook -i inventory.ini setup_docker.yml
-\end{lstlisting}
-
-A Figura \ref{fig:ansible_sucesso} ilustra o \textit{Play Recap} de uma execução bem-sucedida, demonstrando a idempotência da ferramenta: \texttt{changed=0} indica que o Docker já se encontrava instalado e nenhuma alteração foi necessária.
-
-\begin{figure}[h!]
+ 
+O \textit{Playbook} \texttt{setup\_docker.yml} é responsável por preparar o servidor para receber os \textit{containers} \cite{ansible_docs}. As suas tarefas executam, pela seguinte ordem: atualização da \textit{cache} APT; instalação de dependências de sistema (\texttt{apt-transport-https}, \texttt{ca-certificates}, \texttt{curl}); instalação do Docker Engine (\texttt{docker.io}) e do \textit{plugin} Docker Compose V2; ativação do \textit{daemon} Docker via \texttt{systemd}; e adição do utilizador \texttt{daniel} ao grupo \texttt{docker}, eliminando a necessidade de \texttt{sudo} para gerir \textit{containers}.
+ 
+A Figura~\ref{fig:ansible_sucesso} ilustra o \textit{Play Recap} de uma execução bem-sucedida, demonstrando a idempotência da ferramenta: \texttt{changed=0} indica que o Docker já se encontrava instalado e nenhuma alteração foi necessária.
+ 
+\begin{figure}[htbp]
     \centering
     \includegraphics[width=0.9\textwidth]{ansible_sucesso.png}
-    \caption{Execução bem-sucedida do \textit{Playbook} \texttt{setup\_docker.yml} - \textit{Play Recap} com \texttt{failed=0}.}
+    \caption{Execução bem-sucedida do \textit{Playbook} \texttt{setup\_docker.yml} --- \textit{Play Recap} com \texttt{failed=0}.}
     \label{fig:ansible_sucesso}
 \end{figure}
-
+ 
 \section{Implementação dos Serviços via Docker Compose}
-
-\subsection{Arquitectura de Rede dos \textit{Containers}}
-
-Todos os serviços são definidos no ficheiro \texttt{docker-compose.yml} e partilham uma rede interna Docker designada \texttt{rede\_interna}, do tipo \texttt{bridge}. Esta rede isola os \textit{containers} da rede do \textit{host} e permite-lhes comunicar entre si através de nomes de serviço (DNS interno do Docker), sem exposição desnecessária de portas ao exterior \cite{docker_security}.
-
-Apenas as portas estritamente necessárias são publicadas no \textit{host}: 80 e 443 (Nginx), 53 TCP/UDP (Pi-hole), 8080 (painel Pi-hole), 9090 (Prometheus), 9100 (Node Exporter), 3000 (Grafana) e 51821 UDP (WireGuard).
-
+ 
+Todos os serviços são definidos no ficheiro \texttt{docker-compose.yml} e partilham uma rede interna Docker designada \texttt{rede\_interna}, do tipo \texttt{bridge}. Esta rede isola os \textit{containers} da rede do \textit{host} e permite-lhes comunicar entre si através de nomes de serviço (DNS interno do Docker), sem exposição desnecessária de portas ao exterior \cite{docker_security}. Apenas as portas estritamente necessárias são publicadas no \textit{host}: 80 e 443 (Nginx), 53 TCP/UDP (Pi-hole), 8080 (painel Pi-hole), 9090 (Prometheus), 9100 (Node Exporter), 3000 (Grafana) e 51821 UDP (WireGuard).
+ 
 \subsection{Servidor DNS: Pi-hole}
 \label{sec:pihole}
-
-O Pi-hole é configurado como \textit{container} na rede \texttt{rede\_interna}, expondo as portas 53 TCP e UDP para resolução DNS, e a porta 8080 para o painel de administração web \cite{pihole_docs}.
-
+ 
+O Pi-hole é configurado como \textit{container} na rede \texttt{rede\_interna}, expondo as portas 53 TCP e UDP para resolução DNS, e a porta 8080 para o painel de administração web \cite{pihole_docs, pihole_docker}.
+ 
 \subsubsection*{Problema: Palavra-passe não Aplicada pelo Volume Persistente}
-
-Durante a primeira inicialização do Pi-hole, verificou-se que a variável de ambiente \texttt{WEBPASSWORD} definida no \texttt{docker-compose.yml} não estava a ser aplicada: o painel de administração recusava a autenticação com a palavra-passe configurada.
-
-A causa foi identificada após análise dos \textit{logs} do \textit{container} (\texttt{docker logs dns\_pihole}): quando o volume do Pi-hole já existe com configuração persistida de uma inicialização anterior (mesmo que com configurações padrão), a variável \texttt{WEBPASSWORD} é ignorada pelo \textit{entrypoint} da imagem.
-
-A resolução passou por injetar o comando de definição de palavra-passe diretamente no \textit{container} em execução, utilizando \texttt{docker exec}:
-
+ 
+Durante a primeira inicialização do Pi-hole, verificou-se que a variável de ambiente \texttt{WEBPASSWORD} definida no \texttt{docker-compose.yml} não estava a ser aplicada: o painel de administração recusava a autenticação. A causa foi identificada após análise dos \textit{logs} do \textit{container} (\texttt{docker logs dns\_pihole}): quando o volume do Pi-hole já existe com configuração persistida de uma inicialização anterior, a variável \texttt{WEBPASSWORD} é ignorada pelo \textit{entrypoint} da imagem.
+ 
+A resolução passou por injetar o comando diretamente no \textit{container} em execução:
+ 
 \begin{lstlisting}[language=bash, frame=single, breaklines=true, caption={Comando de troubleshooting para definir password no Pi-hole}]
 sudo docker exec dns_pihole pihole setpassword 'nova_password'
 \end{lstlisting}
-
-Este tipo de intervenção pontual demonstra a flexibilidade das arquiteturas baseadas em \textit{containers}: é possível intervir cirurgicamente dentro do ecossistema do serviço sem comprometer o estado do \textit{host} ou dos restantes serviços. Para evitar recorrência deste problema, a solução definitiva seria eliminar o volume antes de uma nova inicialização limpa: \texttt{docker compose down -v}.
-
-A Figura \ref{fig:pihole_admin} comprova o acesso bem-sucedido ao painel de administração do Pi-hole.
-
-\begin{figure}[h!]
+ 
+A solução definitiva para evitar recorrência seria eliminar o volume antes de uma nova inicialização limpa (\texttt{docker compose down -v}). A Figura~\ref{fig:pihole_admin} comprova o acesso bem-sucedido ao painel de administração do Pi-hole.
+ 
+\begin{figure}[htbp]
     \centering
     \includegraphics[width=0.9\textwidth]{pihole_admin.png}
     \caption{Interface de administração do servidor DNS (Pi-hole) a correr em \textit{container}.}
     \label{fig:pihole_admin}
 \end{figure}
-
+ 
 \subsection{Servidor Web e \textit{Reverse Proxy}: Nginx}
-
-O Nginx é configurado com um volume Docker em modo \textit{read-only} (\texttt{:ro}) que mapeia a pasta local \texttt{./web} para o diretório de conteúdo estático do Nginx (\texttt{/usr/share/nginx/html}) \cite{nginx_docs}. Esta abordagem tem dois benefícios:
-
-\begin{enumerate}
-    \item \textbf{Desacoplamento de conteúdo e infraestrutura:} o conteúdo HTML pode ser atualizado sem necessidade de reconstruir ou reiniciar o \textit{container}.
-    \item \textbf{Segurança por \textit{read-only}:} em conformidade com o princípio do mínimo privilégio \cite{nist_containers}, o \textit{container} Nginx não tem permissões de escrita sobre os ficheiros que serve. Num cenário hipotético de comprometimento do processo Nginx, um atacante não conseguiria modificar os ficheiros de conteúdo.
-\end{enumerate}
-
-A Figura \ref{fig:pagina_web_nginx} demonstra a página de estado da infraestrutura servida pelo Nginx.
-
-\begin{figure}[h!]
+ 
+O Nginx é configurado com um volume Docker em modo \textit{read-only} (\texttt{:ro}) que mapeia a pasta local \texttt{./web} para o diretório de conteúdo estático do Nginx (\texttt{/usr/share/nginx/html}) \cite{nginx_docs, nginx_reverseproxy_guide}. Esta abordagem tem dois benefícios: o conteúdo HTML pode ser atualizado sem reconstruir o \textit{container}; e o \textit{container} Nginx não tem permissões de escrita sobre os ficheiros que serve --- em conformidade com o princípio do mínimo privilégio \cite{nist_containers}, um atacante que comprometesse o processo Nginx não conseguiria modificar os ficheiros originais. A Figura~\ref{fig:pagina_web_nginx} demonstra a página de estado da infraestrutura.
+ 
+\begin{figure}[htbp]
     \centering
     \includegraphics[width=0.9\textwidth]{pagina_web_nginx.png}
     \caption{Página Web servida pelo Nginx através de um Volume Docker em modo \textit{Read-Only}.}
     \label{fig:pagina_web_nginx}
 \end{figure}
-
+ 
 \subsection{VPN: WireGuard}
 \label{sec:wireguard}
-
+ 
 O WireGuard foi implementado utilizando a imagem \texttt{lscr.io/linuxserver/wireguard}, mantida pela comunidade LinuxServer.io \cite{wireguard_linuxserver}, que simplifica a geração automática de configurações de cliente relativamente à imagem oficial \cite{donenfeld2017wireguard}. As configurações mais relevantes do serviço são:
-
+ 
 \begin{itemize}
     \item \texttt{SERVERURL=2.83.165.235}: IP público do servidor, necessário para que os clientes externos saibam para onde se ligar.
-    \item \texttt{SERVERPORT=51821}: porta UDP utilizada pelo WireGuard nesta instalação. A porta padrão (51820) foi alterada para 51821 após se detetar um conflito com outro serviço no \textit{router} MEO, que filtrava especificamente essa porta este ajuste foi registado no repositório com a mensagem de \textit{commit} \texttt{fix: muda porta da VPN para 51821 devido a conflito no router} (30 de abril de 2026).
+    \item \texttt{SERVERPORT=51821}: porta UDP utilizada pelo WireGuard nesta instalação. A porta padrão (51820) foi alterada para 51821 após se detetar um conflito com outro serviço no \textit{router} MEO --- este ajuste foi registado no repositório com a mensagem de \textit{commit} \texttt{fix: muda porta da VPN para 51821 devido a conflito no router} (30 de abril de 2026).
     \item \texttt{PEERS=3}: gera automaticamente três perfis de cliente, incluindo ficheiros de configuração e QR codes. O número de \textit{peers} foi aumentado de 2 para 3 numa iteração posterior (\textit{commit} \texttt{feat: atualiza IP publico e aumenta peers da VPN}), para acomodar um dispositivo adicional.
-    \item \texttt{PEERDNS=192.168.1.252}: obriga os clientes VPN a utilizar o Pi-hole como servidor DNS quando ligados, garantindo que o bloqueio de domínios e a resolução de nomes internos funcionam também em modo VPN.
-    \item \texttt{ALLOWEDIPS=0.0.0.0/0}: todo o tráfego do cliente é encaminhado pelo túnel VPN (\textit{full tunnel}), garantindo que nenhum tráfego escapa sem encriptação.
+    \item \texttt{PEERDNS=192.168.1.252}: obriga os clientes VPN a utilizar o Pi-hole como servidor DNS, garantindo que o bloqueio de domínios e a resolução de nomes internos funcionam também em modo VPN.
+    \item \texttt{ALLOWEDIPS=0.0.0.0/0}: encaminha todo o tráfego do cliente pelo túnel VPN (\textit{full tunnel}).
 \end{itemize}
-
-O \textit{container} WireGuard requer duas \textit{capabilities} adicionais do sistema operativo (\texttt{cap\_add: NET\_ADMIN, SYS\_MODULE}), necessárias para manipular as interfaces de rede do \textit{kernel} e carregar o módulo WireGuard.
-
+ 
+O \textit{container} WireGuard requer duas \textit{capabilities} adicionais do sistema operativo (\texttt{cap\_add: NET\_ADMIN, SYS\_MODULE}), necessárias para manipular as interfaces de rede do \textit{kernel}. A Figura~\ref{fig:wireguard_qr} mostra o QR code gerado automaticamente pelo \textit{container} para configuração do cliente móvel.
+ 
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.5\textwidth]{wireguard_qr.png}
+    \caption{QR code gerado pelo \textit{container} WireGuard para configuração automática do cliente móvel (\textit{peer1}).}
+    \label{fig:wireguard_qr}
+\end{figure}
+ 
 \subsubsection*{Problema: Clientes Externos Não Conseguiam Ligar à VPN}
 \label{sec:wireguard_debug}
-
-Após configurar o WireGuard e gerar os perfis de cliente, o telemóvel não conseguia estabelecer a ligação VPN a partir de uma rede externa (rede 4G). O indicador de estado da aplicação WireGuard no telemóvel mostrava o estado \textit{handshaking} de forma persistente, sem completar a ligação.
-
-\subsubsection*{Processo de Diagnóstico}
-
-O processo de diagnóstico foi estruturado em camadas, do servidor para o exterior:
-
-\textbf{1. Verificar se o \textit{container} WireGuard está em execução e à escuta:}
-\begin{lstlisting}[language=bash, frame=single, breaklines=true]
-docker ps | grep wireguard
-ss -ulnp | grep 51821
-\end{lstlisting}
-O resultado confirmou que o \textit{container} estava ativo e a porta 51821 UDP estava à escuta.
-
-\textbf{2. Verificar se os pacotes chegam ao servidor com \texttt{tcpdump}:}
-
-A ferramenta \texttt{tcpdump} permite capturar e analisar o tráfego de rede em tempo real, sendo essencial para distinguir se o problema reside no servidor ou na rede/\textit{router} \cite{rfc8446}. Executou-se o seguinte comando no servidor, enquanto o telemóvel tentava ligar:
-
+ 
+Após configurar o WireGuard e gerar os perfis de cliente, o telemóvel não conseguia estabelecer a ligação VPN a partir de uma rede externa (rede 4G), permanecendo no estado \textit{handshaking} de forma persistente.
+ 
+O processo de diagnóstico foi estruturado em camadas. Primeiro, verificou-se que o \textit{container} estava ativo e a porta 51821 UDP estava à escuta (\texttt{ss -ulnp | grep 51821}). Depois, utilizou-se o \texttt{tcpdump} para capturar o tráfego na interface de rede do servidor enquanto o telemóvel tentava ligar:
+ 
 \begin{lstlisting}[language=bash, frame=single, breaklines=true, caption={Captura de tr\'afego WireGuard com tcpdump}]
 sudo tcpdump -i ens33 udp port 51821 -n
 \end{lstlisting}
-
-O resultado foi revelador: \textbf{zero pacotes capturados}. Isto significava que os pacotes enviados pelo telemóvel não estavam a chegar à interface de rede do servidor, eliminando qualquer hipótese de problema na configuração do WireGuard ou do \textit{container}.
-
-\textbf{3. Identificação do problema: router a bloquear tráfego externo:}
-
-A ausência de pacotes na interface \texttt{ens33} indicava que o \textit{router} MEO estava a filtrar o tráfego UDP externo antes de o encaminhar para a rede interna. A solução foi configurar o \textit{router} em modo \textbf{DMZ} apontado para o IP estático do servidor (\texttt{192.168.1.252}), fazendo com que todo o tráfego externo não solicitado seja diretamente reencaminhado para o servidor.
-
-\textbf{Solução aplicada:}
-\begin{enumerate}
-    \item Aceder à interface de administração do \textit{router} MEO (\texttt{192.168.1.1}).
-    \item Ativar o modo DMZ e configurar o IP de destino: \texttt{192.168.1.252}.
-    \item Reiniciar fisicamente o \textit{router} (um reinício por software não foi suficiente para aplicar a configuração DMZ).
-\end{enumerate}
-
-Após o reinício físico do \textit{router}, repetiu-se o \texttt{tcpdump}: os pacotes UDP do telemóvel passaram a ser visíveis na interface \texttt{ens33}, e a ligação VPN foi estabelecida com sucesso.
-
-% PRINT: wireguard_qr.png
-% Como tirar: docker exec wireguard cat /config/peer1/peer1.png > /tmp/qr.png
-%   ou aceder a /config/peer1/ no servidor e transferir o ficheiro peer1.png
-% Mostrar o QR code gerado pelo container (com o rosto/dados ofuscados se necessário)
-
-% PRINT: wireguard_ligado.png
-% Como tirar: screenshot do telemóvel ou da app WireGuard no PC portátil
-%   a mostrar o estado "Connected" e o tráfego a circular (bytes enviados/recebidos)
-
+ 
+O resultado foi revelador: \textbf{zero pacotes capturados}. Isto significava que os pacotes enviados pelo telemóvel não estavam a chegar à interface de rede do servidor, eliminando qualquer hipótese de problema na configuração do WireGuard ou do \textit{container}. A ausência de pacotes na interface \texttt{ens33} indicava que o \textit{router} MEO estava a filtrar o tráfego UDP externo.
+ 
+A solução foi configurar o \textit{router} em modo \textbf{DMZ} \cite{dmz_cloudflare} apontado para o IP do servidor (\texttt{192.168.1.252}), seguido de um reinício físico do \textit{router} (um reinício por software não foi suficiente). Após isso, os pacotes UDP passaram a ser visíveis no \texttt{tcpdump} e a ligação VPN foi estabelecida com sucesso, conforme comprova a Figura~\ref{fig:wireguard_ligado}.
+ 
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.6\textwidth]{wireguard_ligado.png}
+    \caption{Ligação VPN WireGuard estabelecida com sucesso no dispositivo móvel (estado \textit{Active}).}
+    \label{fig:wireguard_ligado}
+\end{figure}
+ 
 \section{Implementação de CI/CD com GitLab}
 \label{sec:cicd}
-
-\subsection{Configuração do GitLab Runner}
-
-Para implementar a \textit{pipeline} de CI/CD, foi necessário instalar um \textit{GitLab Runner} no próprio servidor Ubuntu \cite{gitlab_cicd}. A opção por um \textit{runner} local justifica-se pela arquitetura de rede: o servidor encontra-se numa rede privada, inacessível diretamente pelos \textit{runners} partilhados da plataforma GitLab. O modelo \textit{Pull}  (onde o \textit{Runner} interpela periodicamente o servidor GitLab para obter novos \textit{jobs}) resolve este problema sem expor o servidor à Internet.
-
-O \textit{Runner} foi instalado e registado com o executor \texttt{shell}:
-
-\begin{lstlisting}[language=bash, frame=single, breaklines=true, caption={Registo do GitLab Runner}]
-sudo gitlab-runner register \
-  --url https://gitlab.estig.ipb.pt/ \
-  --registration-token <TOKEN> \
-  --executor shell \
-  --description "runner-datacenter"
-\end{lstlisting}
-
-A Figura \ref{fig:runner_registo} ilustra o processo de registo bem-sucedido.
-
-\begin{figure}[h!]
+ 
+Para implementar a \textit{pipeline} de CI/CD, foi necessário instalar um \textit{GitLab Runner} no próprio servidor Ubuntu \cite{gitlab_cicd, gitlab_runner_docs}. A opção por um \textit{runner} local justifica-se pela arquitetura de rede: o servidor encontra-se numa rede privada, inacessível diretamente pelos \textit{runners} partilhados da plataforma GitLab. O modelo \textit{Pull} --- onde o \textit{Runner} interpela periodicamente o servidor GitLab para obter novos \textit{jobs} --- resolve este problema sem expor o servidor à Internet. O \textit{Runner} foi registado com o executor \texttt{shell} e ficou imediatamente visível e ativo na interface web do GitLab, como comprovam as Figuras~\ref{fig:runner_registo} e~\ref{fig:runner_online}.
+ 
+\begin{figure}[htbp]
     \centering
     \includegraphics[width=0.9\textwidth]{gitlab_runner_registo.png}
     \caption{Registo bem-sucedido do GitLab Runner no servidor Ubuntu.}
     \label{fig:runner_registo}
 \end{figure}
-
-\begin{figure}[h!]
+ 
+\begin{figure}[htbp]
     \centering
     \includegraphics[width=0.9\textwidth]{gitlab_runner_online.png}
     \caption{\textit{Runner} ativo e em comunicação com o repositório GitLab (estado \textit{online}).}
     \label{fig:runner_online}
 \end{figure}
-
-\subsection{Configuração da \textit{Pipeline}: \texttt{.gitlab-ci.yml}}
-
-O ficheiro \texttt{.gitlab-ci.yml} define a \textit{pipeline} de CI/CD. A sua lógica é simples e deliberada: a cada \textit{commit} na \textit{branch} principal, o \textit{Runner} executa o \textit{Playbook} Ansible \texttt{deploy\_servicos.yml} localmente no servidor (usando \texttt{-i "localhost," -c local}), garantindo que os \textit{containers} são atualizados sem intervenção humana.
-
+ 
+O ficheiro \texttt{.gitlab-ci.yml} define a \textit{pipeline} de CI/CD. A cada \textit{commit} na \textit{branch} principal, o \textit{Runner} executa o \textit{Playbook} Ansible \texttt{deploy\_servicos.yml} localmente no servidor, garantindo que os \textit{containers} são atualizados sem intervenção humana \cite{cicd_youtube}:
+ 
 \begin{lstlisting}[language=bash, frame=single, breaklines=true, caption={Ficheiro .gitlab-ci.yml}]
 stages:
   - deploy
-
+ 
 deploy_infraestrutura:
   stage: deploy
   tags:
@@ -320,61 +223,48 @@ deploy_infraestrutura:
     - sudo ansible-playbook -i "localhost," -c local deploy_servicos.yml
     - echo "Deploy concluido com sucesso!"
 \end{lstlisting}
-
-Para que o utilizador do \textit{Runner} possa executar o Ansible com \texttt{sudo} sem intervenção manual, foi necessário adicionar uma regra no \texttt{sudoers}:
-
-\begin{lstlisting}[language=bash, frame=single, breaklines=true]
-gitlab-runner ALL=(ALL) NOPASSWD: /usr/bin/ansible-playbook
-\end{lstlisting}
-
-A Figura \ref{fig:pipeline_sucesso} demonstra a execução completa e bem-sucedida da \textit{pipeline}.
-
-\begin{figure}[h!]
+ 
+Para que o utilizador do \textit{Runner} possa executar o Ansible com \texttt{sudo} sem intervenção manual, foi necessário adicionar uma regra no \texttt{sudoers}: \texttt{gitlab-runner ALL=(ALL) NOPASSWD: /usr/bin/ansible-playbook}. A Figura~\ref{fig:pipeline_sucesso} demonstra a execução completa e bem-sucedida da \textit{pipeline}.
+ 
+\begin{figure}[htbp]
     \centering
     \includegraphics[width=0.9\textwidth]{pipeline_sucesso.png}
-    \caption{Execução bem-sucedida da \textit{pipeline} de CI/CD - \textit{deploy} automático da infraestrutura a partir de um \textit{commit}.}
+    \caption{Execução bem-sucedida da \textit{pipeline} de CI/CD --- \textit{deploy} automático da infraestrutura a partir de um \textit{commit}.}
     \label{fig:pipeline_sucesso}
 \end{figure}
-
+ 
 \section{Observabilidade: Prometheus, Node Exporter e Grafana}
-
-\subsection{Configuração do Prometheus}
-
-O Prometheus é configurado através do ficheiro \texttt{prometheus.yml}, montado como volume \textit{read-only} no \textit{container} \cite{prometheus_docs}. O ficheiro define dois \textit{scrape jobs}:
-
-\begin{itemize}
-    \item \texttt{prometheus}: recolhe métricas do próprio Prometheus (porto 9090), permitindo monitorizar o estado do sistema de monitorização.
-    \item \texttt{node-exporter}: recolhe métricas de \textit{hardware} do servidor através do Node Exporter (porto 9100). O \textit{target} é referenciado pelo nome do serviço Docker (\texttt{node-exporter:9100}), utilizando o DNS interno da rede Docker.
-\end{itemize}
-
-O intervalo de \textit{scrape} foi configurado a 15 segundos, proporcionando granularidade suficiente para detetar anomalias sem sobrecarregar a base de dados.
-
-\subsection{Visualização com Grafana}
-
-O Grafana foi configurado com a palavra-passe de administrador inicial definida por variável de ambiente (\texttt{GF\_SECURITY\_ADMIN\_PASSWORD}) \cite{grafana_docs}. Após o primeiro acesso, foi adicionado o Prometheus como fonte de dados (\textit{Data Source}) e importado o painel pré-construído \textbf{Node Exporter Full} (ID 1860 no repositório oficial do Grafana), que exibe de forma visual todas as métricas de sistema.
-
-% PRINT: grafana_datasource.png  
-% Como tirar: Grafana > Connections > Data Sources > Prometheus
-% Mostrar a configuração com URL http://prometheus:9090 e o estado "Data source is working"
-
-A Figura \ref{fig:grafana_dashboard} ilustra o painel de monitorização em tempo real.
-
-\begin{figure}[h!]
+ 
+O Prometheus é configurado através do ficheiro \texttt{prometheus.yml}, montado como volume \textit{read-only} no \textit{container} \cite{prometheus_docs}. O ficheiro define dois \textit{scrape jobs}: \texttt{prometheus} (porto 9090) e \texttt{node-exporter} (porto 9100), referenciado pelo nome do serviço Docker (\texttt{node-exporter:9100}), utilizando o DNS interno da rede Docker. O intervalo de \textit{scrape} foi configurado a 15 segundos. A Figura~\ref{fig:prometheus_targets} comprova que ambos os \textit{targets} estão no estado \textit{UP}.
+ 
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.9\textwidth]{prometheus_targets.png}
+    \caption{Interface de \textit{targets} do Prometheus com ambos os serviços no estado \textit{UP}.}
+    \label{fig:prometheus_targets}
+\end{figure}
+ 
+O Grafana foi configurado com a palavra-passe de administrador por variável de ambiente (\texttt{GF\_SECURITY\_ADMIN\_PASSWORD}) \cite{grafana_docs}. Após o primeiro acesso, foi adicionado o Prometheus como \textit{Data Source} e importado o painel \textbf{Node Exporter Full} (ID 1860 \cite{grafana_node_dashboard}). A Figura~\ref{fig:grafana_datasource} mostra a configuração da ligação entre o Grafana e o Prometheus, e a Figura~\ref{fig:grafana_dashboard} ilustra o painel de monitorização em tempo real.
+ 
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.88\textwidth]{grafana_datasource.png}
+    \caption{Configuração do Prometheus como \textit{Data Source} no Grafana, com estado de ligação confirmado.}
+    \label{fig:grafana_datasource}
+\end{figure}
+ 
+\begin{figure}[htbp]
     \centering
     \includegraphics[width=0.9\textwidth]{grafana_dashboard.png}
     \caption{Painel \textit{Node Exporter Full} no Grafana a exibir métricas do servidor em tempo real.}
     \label{fig:grafana_dashboard}
 \end{figure}
-
-% PRINT: prometheus_targets.png
-% Como tirar: http://192.168.1.252:9090/targets
-% Mostrar a tabela com os dois targets (prometheus e node-exporter) no estado "UP"
-
+ 
 \section{Síntese das Configurações de Segurança Aplicadas}
-
-A Tabela \ref{tab:seguranca} sintetiza as medidas de segurança aplicadas na plataforma, em conformidade com as recomendações do NIST SP 800-190 \cite{nist_containers}.
-
-\begin{table}[h!]
+ 
+A Tabela~\ref{tab:seguranca} sintetiza as medidas de segurança aplicadas na plataforma, em conformidade com as recomendações do NIST SP 800-190 \cite{nist_containers}.
+ 
+\begin{table}[htbp]
 \centering
 \caption{Medidas de Segurança Aplicadas na Plataforma}
 \label{tab:seguranca}
