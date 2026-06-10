@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  # O nosso Reverse Proxy / Servidor Web
+  # Reverse Proxy / Servidor Web
   proxy_web:
     image: nginx:latest
     container_name: nginx_proxy
@@ -13,6 +13,7 @@ services:
       - ./web:/usr/share/nginx/html:ro # Injeta a pasta web para dentro do Nginx (Read-Only como prática de segurança)
     networks:
       - rede_interna
+
 
   # Servidor DNS (Pi-Hole)
   servidor_dns:
@@ -41,6 +42,7 @@ services:
     networks:
       - rede_interna
 
+
   # Prometheus (Base de dados de métricas)
   prometheus:
     image: prom/prometheus:latest
@@ -53,6 +55,7 @@ services:
     networks:
       - rede_interna
 
+
   # Grafana (Painéis e Gráficos Visuais)
   grafana:
     image: grafana/grafana:latest
@@ -64,8 +67,6 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=admin # Password inicial do Grafana
     networks:
       - rede_interna
-
-
 
 
 # VPN (WireGuard)
@@ -91,6 +92,23 @@ services:
       - "51820:51820/udp"
     sysctls:
       - net.ipv4.conf.all.src_valid_mark=1
+    restart: unless-stopped
+    networks:
+      - rede_interna
+
+
+  nextcloud:
+    image: lscr.io/linuxserver/nextcloud:latest
+    container_name: nextcloud
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Lisbon
+    volumes:
+      - ./nextcloud/appdata:/config
+      - ./nextcloud/data:/data
+    ports:
+      - "8081:443" # O Nextcloud desta imagem usa HTTPS internamente. Fica acessível na porta 8081.
     restart: unless-stopped
     networks:
       - rede_interna
