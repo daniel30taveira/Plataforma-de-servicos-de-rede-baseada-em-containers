@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  # Reverse Proxy / Servidor Web
+  # REVERSE PROXY E SERVIDOR WEB (Nginx)
   proxy_web:
     image: nginx:latest
     container_name: nginx_proxy
@@ -10,12 +10,13 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./web:/usr/share/nginx/html:ro # Injeta a pasta web para dentro do Nginx (Read-Only como prática de segurança)
+      - ./web:/usr/share/nginx/html:ro # Servidor Web Estático
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro # Configuração do Reverse Proxy 
     networks:
       - rede_interna
 
 
-  # Servidor DNS (Pi-Hole)
+  # SERVIDOR DNS (Pi-Hole)
   servidor_dns:
     image: pihole/pihole:latest
     container_name: dns_pihole
@@ -23,16 +24,90 @@ services:
     ports:
       - "53:53/tcp"
       - "53:53/udp"
-      - "8080:80" # A porta 8080 vai dar acesso ao painel de controlo do DNS
+      - "8080:80" # Painel de controlo administrativo do DNS
     environment:
       TZ: 'Europe/Lisbon'
-      WEBPASSWORD: '123.,' # Esta será a password do painel
+      WEBPASSWORD: '123.,' 
     networks:
       - rede_interna
 
-# --- OBSERVABILIDADE ---
+
+  # REDE PRIVADA VIRTUAL (WireGuard VPN)
+  wireguard:
+    image: lscr.io/linuxserver/wireguard:latest
+    container_name: wireguard
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Lisbon
+      - SERVERURL=2.83.165.235 # IP do servidor Ubuntu
+      - SERVERPORT=51820
+      - PEERS=2 # Cria 2 perfis (dois QR Codes para o telemóvel e computador portatil neste caso)
+      - PEERDNS=192.168.1.252 # Força a VPN a usar o Pi-hole
+      - INTERNAL_SUBNET=10.13.13.0
+      - ALLOWEDIPS=0.0.0.0/0
+    volumes:
+      - ./wireguard:/config
+    ports:
+      - "51820:51820/udp"
+    sysctls:
+      - net.ipv4.conf.all.src_valid_mark=1
+    restart: unless-stopped
+    networks:
+      - rede_interna
+
+
+  # SERVIDOR DE FICHEIROS / CLOUD PRIVADA (Nextcloud)
+  nextcloud:
+    image: lscr.io/linuxserver/nextcloud:latest
+    container_name: nextcloud
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Lisbon
+    volumes:
+      - ./nextcloud/appdata:/config
+      - ./nextcloud/data:/data
+    ports:
+      - "8081:443" 
+    restart: unless-stopped
+    networks:
+      - rede_interna
+
+
+  # SERVIDOR DE E-MAIL (Docker-Mailserver)
+  mailserver:
+    image: mailserver/docker-mailserver:latest
+    container_name: mailserver
+    hostname: mail
+    domainname: local.lan
+    ports:
+      - "25:25"       # SMTP
+      - "143:143"     # IMAP
+      - "587:587"     # Submissão SMTP Seguro
+      - "993:993"     # IMAP Seguro
+    volumes:
+      - ./mailserver/maildata:/var/mail
+      - ./mailserver/mailstate:/var/mail-state
+      - ./mailserver/mailconfig:/tmp/docker-mailserver
+      - /etc/localtime:/etc/localtime:ro
+    environment:
+      - ENABLE_SPAMASSASSIN=1
+      - ENABLE_CLAMAV=0 # Desativado para poupar memória RAM no laboratório
+      - ENABLE_FAIL2BAN=1
+      - ONE_DIR=1
+    restart: unless-stopped
+    networks:
+      - rede_interna
+
+
+
+  # --- MONITORIZAÇÃO E OBSERVABILIDADE (MÉTRICAS) ---
   
-  # Node Exporter (Sensores de hardware)
+  # Node Exporter (Métricas do Host)
   node-exporter:
     image: prom/node-exporter:latest
     container_name: node_exporter
@@ -56,7 +131,7 @@ services:
       - rede_interna
 
 
-  # Grafana (Painéis e Gráficos Visuais)
+  # Grafana (Visualização de Dashboards)
   grafana:
     image: grafana/grafana:latest
     container_name: grafana
@@ -64,57 +139,40 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin # Password inicial do Grafana
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SERVER_ROOT_URL=http://192.168.1.252/grafana/
+      - GF_SERVER_SERVE_FROM_SUB_PATH=true
     networks:
       - rede_interna
 
 
-# VPN (WireGuard)
-  wireguard:
-    image: lscr.io/linuxserver/wireguard:latest
-    container_name: wireguard
-    cap_add:
-      - NET_ADMIN
-      - SYS_MODULE
-    environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=Europe/Lisbon
-      - SERVERURL=2.83.165.235 # O IP do servidor Ubuntu
-      - SERVERPORT=51820
-      - PEERS=2 # Cria 2 perfis (dois QR Codes para o telemóvel e computador portatil neste caso)
-      - PEERDNS=192.168.1.252 # IMPORTANTE: Obriga a VPN a usar o Pi-hole
-      - INTERNAL_SUBNET=10.13.13.0
-      - ALLOWEDIPS=0.0.0.0/0
-    volumes:
-      - ./wireguard:/config
+  # Grafana Loki (Agregador de Logs)
+  loki:
+    image: grafana/loki:3.0.0
+    container_name: loki
     ports:
-      - "51820:51820/udp"
-    sysctls:
-      - net.ipv4.conf.all.src_valid_mark=1
+      - "3100:3100"
     restart: unless-stopped
     networks:
       - rede_interna
 
 
-  nextcloud:
-    image: lscr.io/linuxserver/nextcloud:latest
-    container_name: nextcloud
-    environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=Europe/Lisbon
+  # Promtail (Agente de recolha de logs)
+  promtail:
+    image: grafana/promtail:3.0.0
+    container_name: promtail
     volumes:
-      - ./nextcloud/appdata:/config
-      - ./nextcloud/data:/data
-    ports:
-      - "8081:443" # O Nextcloud desta imagem usa HTTPS internamente. Fica acessível na porta 8081.
+      - /var/log:/var/log:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - ./promtail/promtail-config.yaml:/etc/promtail/config.yml:ro
+    command: -config.file=/etc/promtail/config.yml
     restart: unless-stopped
     networks:
       - rede_interna
 
 
-# Uma rede isolada para os containers comunicarem de forma segura:
+
+# Rede isolada do tipo Bridge para comunicação segura inter-container
 networks:
   rede_interna:
     driver: bridge
