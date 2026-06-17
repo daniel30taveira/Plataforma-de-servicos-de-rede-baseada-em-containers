@@ -43,16 +43,16 @@ services:
       - PUID=1000
       - PGID=1000
       - TZ=Europe/Lisbon
-      - SERVERURL=2.83.165.235 # IP do servidor Ubuntu
-      - SERVERPORT=51820
-      - PEERS=2 # Cria 2 perfis (dois QR Codes para o telemóvel e computador portatil neste caso)
-      - PEERDNS=192.168.1.252 # Força a VPN a usar o Pi-hole
+      - SERVERURL=daniel-infra.ddns.net # Nome DNS Dinâmico em vez de IP Fixo
+      - SERVERPORT=51821
+      - PEERS=3 
+      - PEERDNS=192.168.1.252
       - INTERNAL_SUBNET=10.13.13.0
       - ALLOWEDIPS=0.0.0.0/0
     volumes:
       - ./wireguard:/config
     ports:
-      - "51820:51820/udp"
+      - "51821:51821/udp"
     sysctls:
       - net.ipv4.conf.all.src_valid_mark=1
     restart: unless-stopped
