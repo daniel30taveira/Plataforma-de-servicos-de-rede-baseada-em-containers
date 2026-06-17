@@ -1,17 +1,18 @@
 \chapter{Estado da Arte}
 \label{chap:estado_arte}
 
-Este capítulo apresenta uma revisão das principais tecnologias utilizadas neste projeto, com base na documentação oficial das ferramentas, em especificações técnicas publicadas e em literatura académica da área de administração de sistemas e DevOps. O objetivo não é apenas listar ferramentas, mas compreender o contexto em que surgiram e as razões pelas quais representam o estado da arte atual para o problema em causa.
+Este capítulo apresenta uma revisão das principais tecnologias utilizadas neste projeto, com base na documentação oficial das ferramentas, em especificações técnicas publicadas e em literatura académica da área de administração de sistemas e DevOps. O objetivo não é apenas listar ferramentas, mas compreender o contexto em que surgiram, as suas alternativas de mercado e as razões pelas quais representam o estado da arte atual para o problema em causa.
 
 \section{Virtualização e \textit{Containers}: Evolução e Diferenças}
 
-A virtualização de servidores, popularizada na primeira década do século XXI com \textit{hypervisors} como o VMware ESXi, o Hyper-V ou o KVM, revolucionou a forma como os recursos de \textit{hardware} são partilhados. Ao permitir executar múltiplos sistemas operativos isolados numa mesma máquina física, tornou possível consolidar infraestruturas inteiras em poucos servidores físicos \cite{vmware_workstation}.
+A virtualização de servidores, popularizada na primeira década do século XXI com \textit{hypervisors} como o VMware ESXi, o Hyper-V ou o KVM, revolucionou a forma como os recursos de \textit{hardware} são partilhados. Ao permitir executar múltiplos sistemas operativos isolados numa mesma máquina física, tornou possível consolidar infraestruturas inteiras em poucos servidores físicos \cite{vmware_workstation}. No entanto, as máquinas virtuais tradicionais trazem consigo um custo significativo: cada VM replica um sistema operativo completo, o que implica consumo de RAM, armazenamento e tempo de arranque na ordem dos minutos.
 
-No entanto, as máquinas virtuais tradicionais trazem consigo um custo significativo: cada VM replica um sistema operativo completo, o que implica consumo de RAM, armazenamento e tempo de arranque na ordem dos minutos. Para ambientes que exigem escalabilidade rápida e alta densidade de serviços, este modelo revelou-se pouco eficiente.
+A tecnologia de \textit{containers} surge como resposta a esta limitação. Em vez de virtualizar o \textit{hardware}, os \textit{containers} virtualizam o sistema operativo: partilham o mesmo \textit{kernel} do \textit{host}, mas isolam os processos, o sistema de ficheiros e a rede de cada aplicação através de mecanismos do \textit{kernel} Linux, nomeadamente os \textit{namespaces} e os \textit{cgroups} \cite{docker_docs}.
 
-A tecnologia de \textit{containers} surge como resposta a esta limitação. Em vez de virtualizar o \textit{hardware}, os \textit{containers} virtualizam o sistema operativo: partilham o mesmo \textit{kernel} do \textit{host}, mas isolam os processos, o sistema de ficheiros e a rede de cada aplicação através de mecanismos do \textit{kernel} Linux, nomeadamente os \textit{namespaces} e os \textit{cgroups} \cite{docker_docs}. O resultado é um arranque em milissegundos, um consumo de recursos mínimo e uma portabilidade total entre ambientes.
+\subsection{Orquestração e Execução: Docker Compose versus Kubernetes}
+No domínio da gestão de contentores, a escolha da ferramenta depende da escala e da complexidade da infraestrutura. O \textbf{Kubernetes} representa o padrão industrial para orquestração de ecossistemas massivos e altamente distribuídos, oferecendo alta disponibilidade nativa, auto-recuperação (\textit{self-healing}) e escalabilidade horizontal automática. Contudo, introduz uma elevada complexidade operacional e um consumo considerável de recursos apenas para manter o seu \textit{control plane}.
 
-A Tabela \ref{tab:vm_vs_container} sintetiza as principais diferenças entre os dois paradigmas.
+Para o presente cenário de laboratório e para infraestruturas de pequena/média dimensão, o \textbf{Docker Compose} assume-se como a escolha ideal. Permite uma definição declarativa simples e unificada de toda a topologia através de um único ficheiro YAML, garantindo a reprodutibilidade com uma pegada de memória extremamente reduzida, o que cumpre com o requisito de "orquestração leve" definido nos objetivos do projeto.
 
 \begin{table}[h!]
 \centering
@@ -38,81 +39,37 @@ Segurança de isolamento & Elevada (separação de \textit{kernel}) & Moderada (
 
 \section{Docker e Docker Compose}
 
-O Docker, lançado em 2013, democratizou o uso de \textit{containers} ao fornecer uma interface de linha de comandos acessível e um ecossistema de imagens públicas (Docker Hub) \cite{docker_docs, containers_ibm}. A sua adoção generalizada é bem ilustrada pela vasta quantidade de recursos tutoriais disponíveis, desde guias técnicos especializados \cite{docker_digitalocean} a conteúdo de divulgação \cite{docker_youtube_fireship}. Um \textit{container} Docker é instanciado a partir de uma \textit{image}, que por sua vez é construída de forma declarativa através de um ficheiro \texttt{Dockerfile}.
-
-Para ambientes com múltiplos serviços interdependentes como o deste projeto, onde o DNS, o \textit{proxy} e a monitorização precisam de comunicar entre si, o Docker Compose permite definir toda a topologia de \textit{containers} num único ficheiro YAML (\texttt{docker-compose.yml}) \cite{docker_compose_docs, docker_compose_tutorial}. Cada serviço é descrito com a sua imagem, portas expostas, variáveis de ambiente, volumes e redes, garantindo que a infraestrutura pode ser recriada com um único comando (\texttt{docker compose up -d}).
-
-Do ponto de vista de segurança, a documentação oficial do Docker recomenda um conjunto de boas práticas que foram aplicadas neste projeto: execução de \textit{containers} com utilizadores sem privilégios de \textit{root}, montagem de volumes em modo \textit{read-only} sempre que possível, e isolamento de serviços em redes internas sem exposição desnecessária de portas ao exterior \cite{docker_security, nist_containers}.
+O Docker, lançado em 2013, democratizou o uso de \textit{containers} ao fornecer uma interface de linha de comandos acessível e um ecossistema de imagens públicas (Docker Hub) \cite{docker_docs, containers_ibm}. Um \textit{container} Docker é instanciado a partir de uma \textit{image}, que por sua vez é construída de forma declarativa através de um ficheiro \texttt{Dockerfile}. Para ambientes com múltiplos serviços interdependentes como o deste projeto, o Docker Compose permite definir toda a topologia de \textit{containers} num único ficheiro YAML (\texttt{docker-compose.yml}) \cite{docker_compose_docs, docker_compose_tutorial}.
 
 \subsection{Podman como Alternativa \textit{Rootless}}
-
-Paralelamente ao Docker, o Podman tem emergido como uma alternativa com características de segurança superiores em determinados cenários. A sua arquitetura \textit{daemonless} não exige um processo \textit{daemon} com privilégios de \textit{root} em execução permanente reduz a superfície de ataque do sistema \cite{podman_docs}. O Podman suporta a execução de \textit{containers} no contexto de um utilizador sem privilégios (\textit{rootless containers}), o que significa que mesmo que o processo do \textit{container} seja comprometido, o atacante não herda privilégios de administrador no \textit{host}.
-
-Para este projeto, optou-se pelo Docker em detrimento do Podman, principalmente pela sua maturidade na integração com o Docker Compose V2 e pela compatibilidade com as imagens utilizadas (Pi-hole, WireGuard com \texttt{cap\_add}). Contudo, reconhece-se que para ambientes de produção de alta segurança, o Podman com \textit{rootless} seria a escolha mais indicada.
+Paralelamente ao Docker, o Podman tem emergido como uma alternativa com características de segurança superiores. A sua arquitetura \textit{daemonless} não exige um processo com privilégios de \textit{root} em execução permanente, reduzindo a superfície de ataque do sistema \cite{podman_docs}. O Podman suporta a execução de \textit{containers} no contexto de um utilizador sem privilégios (\textit{rootless containers}). Para este projeto, optou-se pelo Docker principalmente pela sua maturidade na integração com o Docker Compose V2 e pela compatibilidade com as imagens utilizadas (Pi-hole e WireGuard com \texttt{cap\_add}).
 
 \section{Infraestrutura como Código (IaC) e Ansible}
 
-O conceito de \textit{Infrastructure as Code} (IaC) estabelece que a configuração de toda a infraestrutura deve ser descrita em ficheiros de texto estruturado, versionados num sistema de controlo de versões, e aplicados de forma automatizada e reprodutível \cite{morris2016infrastructure}. A vantagem fundamental desta abordagem é a eliminação da dicotomia entre o que está documentado e o que está realmente instalado: o repositório Git é, simultaneamente, a documentação e o estado real da infraestrutura.
+O conceito de \textit{Infrastructure as Code} (IaC) estabelece que a configuração de toda a infraestrutura deve ser descrita em ficheiros de texto estruturado, versionados num sistema de controlo de versões, e aplicados de forma automatizada e reprodutível \cite{morris2016infrastructure}. O Ansible é uma das ferramentas de IaC mais adotadas na indústria, em particular para a gestão de configuração de sistemas Linux \cite{ansible_docs}. 
 
-O Ansible é uma das ferramentas de IaC mais adotadas na indústria, em particular para a gestão de configuração de sistemas Linux \cite{ansible_docs}. Contrariamente a ferramentas como o Puppet ou o Chef, o Ansible não requer a instalação de agentes nos servidores alvo: comunica exclusivamente por SSH, utilizando o protocolo que já está disponível em qualquer servidor Linux por omissão. Esta característica \textit{agentless} simplifica enormemente a adoção em infraestruturas existentes.
+Contrariamente a ferramentas como o \textbf{Puppet} ou o \textbf{Chef}, que exigem um modelo cliente-servidor com a instalação e manutenção de agentes (\textit{agents}) em todas as máquinas alvo, o Ansible adota uma filosofia \textit{agentless}. Ele comunica exclusivamente por SSH, utilizando o protocolo padrão já disponível por omissão em qualquer servidor Linux, simplificando radicalmente a arquitetura. A propriedade mais importante do Ansible é a \textbf{idempotência}: um \textit{Playbook} pode ser executado múltiplas vezes contra o mesmo servidor e o resultado garante sempre o mesmo estado final estável.
 
-A propriedade mais importante do Ansible do ponto de vista arquitetural é a \textbf{idempotência} \cite{ansible_idempotency, ansible_youtube}: um \textit{Playbook} pode ser executado múltiplas vezes contra o mesmo servidor e o resultado é sempre o mesmo estado final, independentemente do estado inicial. Se o Docker já estiver instalado, o Ansible não o reinstala; se o serviço já estiver ativo, não o reinicia desnecessariamente. Esta propriedade é fundamental para a integração com pipelines de CI/CD, onde os \textit{Playbooks} são executados automaticamente a cada \textit{commit}.
+\section{Serviços de Rede em \textit{Containers} e Alternativas}
 
-\section{Serviços de Rede em \textit{Containers}}
+\subsection{Resolução de Nomes: Pi-hole versus BIND9}
+O Sistema de Nomes de Domínio (DNS), especificado no RFC 1035 \cite{rfc1035}, é o protocolo fundamental de tradução de nomes. Tradicionalmente, servidores como o \textbf{BIND9} ou o \textbf{dnsmasq} são utilizados para esta função, oferecendo robustez e controlo total sobre as zonas de DNS. No entanto, exigem uma configuração complexa via ficheiros de texto densos e carecem de ferramentas nativas de segurança de rede.
+O \textbf{Pi-hole} \cite{pihole_docs} foi selecionado por combinar as capacidades de um servidor recursivo e autoritativo local com um motor de filtragem e bloqueio de domínios maliciosos a nível de rede. Adicionalmente, disponibiliza uma interface web administrativa intuitiva para auditoria em tempo real, combinando administração facilitada com segurança ativa.
 
-\subsection{DNS com Pi-hole}
+\subsection{Reverse Proxy: Nginx versus Apache e Traefik}
+Para gerir o tráfego de entrada, o \textbf{Apache HTTP Server} e o \textbf{Traefik} configuram as principais alternativas ao Nginx. O Apache é altamente extensível, mas apresenta um consumo de recursos superior sob carga elevada devido ao seu modelo baseado em processos. O Traefik destaca-se pela sua integração dinâmica nativa com a API do Docker, mas possui uma curva de aprendizagem mais acentuada para configurações estáticas complexas.
+O \textbf{Nginx} \cite{nginx_docs} foi o escolhido devido à sua arquitetura orientada a eventos assíncronos (baixo consumo de RAM), extrema rapidez a servir conteúdo estático e simplicidade na configuração declarativa de blocos de proxy reverso e terminação TLS unificada.
 
-O Sistema de Nomes de Domínio (DNS), especificado no RFC 1035 \cite{rfc1035}, é o protocolo fundamental que traduz nomes de domínio legíveis por humanos em endereços IP. Numa rede interna, um servidor DNS local oferece vantagens significativas: resolução de nomes privados (como \texttt{datacenter.local}), caching de respostas para redução de latência, e controlo sobre as resoluções realizadas.
+\subsection{Redes Privadas Virtuais: WireGuard versus OpenVPN e IPsec}
+Os protocolos tradicionais como \textbf{OpenVPN} e \textbf{IPsec} são altamente personalizáveis e suportam retrocompatibilidade alargada, mas operam maioritariamente no espaço do utilizador (\textit{user space}), resultando numa maior latência de pacotes e num código-fonte massivo (centenas de milhares de linhas), o que dificulta auditorias de segurança.
+O \textbf{WireGuard} apresenta-se como o estado da arte por estar integrado diretamente no \textit{kernel} do Linux desde a versão 5.6, reduzindo drasticamente a latência e o overhead de processamento. Possui uma superfície de ataque muito reduzida (cerca de 4.000 linhas de código C) e utiliza primitivas criptográficas modernas e rápidas (Curve25519 e ChaCha20-Poly1305).
 
-O Pi-hole \cite{pihole_docs, pihole_docker, pihole_youtube} é um servidor DNS de código aberto que, para além das funções de resolução e cache, implementa bloqueio de domínios a nível de rede. Ao contrário dos bloqueadores de anúncios que funcionam ao nível do navegador, o Pi-hole bloqueia pedidos DNS antes de qualquer ligação ser estabelecida, afetando todos os dispositivos da rede. Neste projeto, o Pi-hole foi utilizado principalmente pelas suas capacidades de servidor DNS autoritativo e recursivo para a rede interna.
+\section{Observabilidade: Prometheus e Loki versus ELK Stack}
 
-\subsection{\textit{Reverse Proxy} com Nginx}
+Os três pilares da observabilidade são as métricas, os \textit{logs} e os \textit{traces} \cite{beyer2016sre}. Na gestão de logs e métricas, o ecossistema \textbf{ELK / EFK Stack} (Elasticsearch, Logstash/Fluentd, Kibana) representa a solução mais robusta do mercado para indexação textual completa e pesquisa analítica pesada. Todavia, o Elasticsearch assenta em Java e exige múltiplos Gigabytes de memória RAM apenas para se manter estável em repouso, tornando-o inviável para ambientes com restrição de hardware.
 
-O Nginx \cite{nginx_docs, nginx_reverseproxy_guide} é um servidor HTTP de alto desempenho, amplamente utilizado como \textit{reverse proxy} em infraestruturas modernas. No contexto deste projeto, o Nginx atua como o único ponto de entrada da rede, recebendo todos os pedidos nas portas 80 (HTTP) e 443 (HTTPS) e encaminhando-os para os serviços internos correspondentes. Esta arquitetura de ponto de entrada único (\textit{single ingress point}) simplifica a gestão de certificados TLS e permite centralizar as políticas de segurança.
-
-\subsection{VPN com WireGuard}
-
-O WireGuard é um protocolo de VPN moderno, desenvolvido por Jason A. Donenfeld e apresentado em 2017 na conferência NDSS \cite{donenfeld2017wireguard}. Para além da especificação técnica original, existem recursos acessíveis que demonstram a sua configuração prática \cite{wireguard_youtube, wireguard_linuxserver}. Em comparação com protocolos estabelecidos como o OpenVPN ou o IPSec, o WireGuard apresenta uma base de código significativamente menor (aproximadamente 4.000 linhas de código C, contra centenas de milhares no OpenVPN), o que reduz a superfície de ataque e facilita as auditorias de segurança. O protocolo foi integrado no \textit{kernel} Linux na versão 5.6 (2020), tornando-o parte do sistema operativo e eliminando a dependência de módulos externos.
-
-Do ponto de vista criptográfico, o WireGuard utiliza primitivas modernas e bem auditadas: Curve25519 para o acordo de chaves, ChaCha20-Poly1305 para encriptação autenticada, e BLAKE2s para \textit{hashing} \cite{donenfeld2017wireguard}. A configuração é substancialmente mais simples do que a do OpenVPN, resumindo-se essencialmente à troca de chaves públicas entre os \textit{peers}.
-
-\section{Observabilidade e Monitorização}
-
-Em arquiteturas modernas baseadas em \textit{containers}, a monitorização tradicional de recursos (CPU/RAM) deixou de ser suficiente. O conceito de \textbf{observabilidade}, popularizado pela comunidade de \textit{Site Reliability Engineering} (SRE) da Google \cite{beyer2016sre}, estabelece que um sistema é considerado observável quando é possível inferir o seu estado interno a partir dos seus dados externos, sem necessidade de intervenção direta.
-
-Os três pilares da observabilidade são as métricas, os \textit{logs} e os \textit{traces} \cite{beyer2016sre, prometheus_youtube}. Este projeto aborda os dois primeiros:
-
-\begin{itemize}
-    \item \textbf{Métricas (Prometheus + Node Exporter):} O Prometheus \cite{prometheus_docs} é uma base de dados de séries temporais desenhada especificamente para a recolha de métricas de sistemas distribuídos. O seu modelo de \textit{pull} (o Prometheus interroga ativamente os \textit{targets} em intervalos regulares) simplifica a arquitetura e permite detetar facilmente quando um serviço fica inacessível. O Node Exporter \cite{node_exporter} é um agente leve que expõe métricas de \textit{hardware} do sistema operativo (utilização de CPU, memória, I/O de disco, interfaces de rede) num formato compreensível pelo Prometheus.
-
-    \item \textbf{Visualização (Grafana):} O Grafana \cite{grafana_docs} é uma plataforma de visualização de dados que se conecta ao Prometheus como fonte de dados e permite construir painéis interativos com gráficos de séries temporais, indicadores de estado e alertas.
-\end{itemize}
-
-A Tabela \ref{tab:observability_stack} apresenta uma comparação das principais \textit{stacks} de observabilidade \textit{open source} atualmente disponíveis.
-
-\begin{table}[h!]
-\centering
-\caption{Comparação de \textit{Stacks} de Observabilidade \textit{Open Source}}
-\label{tab:observability_stack}
-\begin{tabulary}{\textwidth}{|L|L|L|L|}
-\hline
-\textbf{Stack} & \textbf{Métricas} & \textbf{Logs} & \textbf{Complexidade} \\
-\hline
-Prometheus + Grafana & Prometheus & Loki (opcional) & Baixa a média \\
-\hline
-ELK (Elastic Stack) & Metricbeat & Elasticsearch + Kibana & Elevada \\
-\hline
-EFK (Elastic + Fluentd) & Metricbeat & Fluentd + Elasticsearch & Elevada \\
-\hline
-Grafana LGTM & Mimir & Loki & Média \\
-\hline
-\end{tabulary}
-\end{table}
-
-Para este projeto, a escolha da \textit{stack} Prometheus + Grafana justifica-se pela sua baixa complexidade de configuração em ambiente \textit{container}, pela excelente documentação oficial \cite{prometheus_docs, grafana_docs} e pela elevada adoção na comunidade, que facilita a resolução de problemas. O painel \textit{Node Exporter Full} \cite{grafana_node_dashboard}, com o ID 1860 no repositório oficial do Grafana, permite uma visualização completa das métricas de sistema sem qualquer configuração adicional.
+A combinação do \textbf{Prometheus} (métricas temporais via modelo \textit{pull}) com o \textbf{Grafana Loki} (agregador de logs focado em metadados/labels) e o \textbf{Grafana} (visualização unificada) justifica-se pela sua extrema leveza arquitetural. O Loki partilha a mesma filosofia de labels do Prometheus, não indexando o texto completo dos logs. Isto resulta numa poupança maciva de RAM e CPU no servidor Ubuntu, oferecendo um sistema de monitorização ágil e integrado sob uma pegada computacional mínima.
 
 \section{CI/CD e GitLab}
 
-O paradigma de \textit{Continuous Integration / Continuous Deployment} (CI/CD) estabelece que qualquer alteração ao código-fonte deve ser automaticamente testada e, se os testes passarem, aplicada ao ambiente de produção sem intervenção humana \cite{humble2010continuous}. No contexto de infraestrutura como código, este princípio significa que qualquer alteração a um ficheiro de configuração ou \textit{Playbook} Ansible, quando submetida ao repositório, desencadeia automaticamente o re-\textit{deploy} da infraestrutura.
-
-O GitLab \cite{gitlab_cicd, gitlab_runner_docs, cicd_youtube} oferece um sistema de CI/CD integrado com o repositório Git, baseado num ficheiro de orquestração (\texttt{.gitlab-ci.yml}) que define os \textit{jobs} a executar. A execução dos \textit{jobs} é delegada a processos designados \textit{Runners}, que podem ser geridos pela própria plataforma GitLab (SaaS) ou instalados localmente (\textit{self-hosted}). Para este projeto, optou-se por um \textit{Runner} local instalado no próprio servidor Ubuntu, uma vez que a infraestrutura se encontra numa rede privada sem acesso direto a \textit{runners} externos.
+O paradigma de \textit{Continuous Integration / Continuous Deployment} (CI/CD) estabelece que qualquer alteração ao código deve ser testada e aplicada de forma automatizada \cite{humble2010continuous}. O GitLab \cite{gitlab_cicd} oferece um sistema de CI/CD integrado com o repositório baseado no ficheiro \texttt{.gitlab-ci.yml}. Para este projeto, optou-se por um \textit{GitLab Runner} local instalado em modo \textit{self-hosted} no servidor Ubuntu. Dado que a infraestrutura se encontra numa rede privada simulada atrás de um router doméstico, o modelo \textit{Pull} do Runner local permite-lhe interrogar a API do GitLab exterior e puxar os \textit{jobs} de deploy sem que o servidor necessite de expor portas SSH ou APIs críticas diretamente para a Internet pública.
