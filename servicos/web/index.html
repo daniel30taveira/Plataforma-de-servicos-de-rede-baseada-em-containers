@@ -1,32 +1,57 @@
 <!DOCTYPE html>
-<html lang="pt-PT">
+<html lang="pt">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Data Center - Daniel Taveira</title>
     <style>
-        body { font-family: Arial, sans-serif; background-color: #f4f4f9; color: #333; text-align: center; padding: 50px; }
-        h1 { color: #0056b3; }
-        .container { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); display: inline-block; }
-        .status { color: green; font-weight: bold; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #1e1e24; color: #fff; margin: 0; padding: 20px; text-align: center; }
+        h1 { color: #f39c12; margin-bottom: 10px; }
+        p { color: #aaa; margin-bottom: 30px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; max-width: 1000px; margin: 0 auto; }
+        .card { background: #2c2c35; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); transition: transform 0.3s; text-decoration: none; color: inherit; display: block; }
+        .card:hover { transform: translateY(-5px); border: 2px solid #f39c12; }
+        .card h3 { margin: 0 0 10px 0; color: #f39c12; }
+        .card p { margin: 0; font-size: 14px; color: #bbb; }
+        .status { display: inline-block; width: 10px; height: 10px; background: #2ecc71; border-radius: 50%; margin-right: 8px; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Bem-vindo ao Data Center</h1>
-        <h2>Projeto de Serviços de Rede</h2>
-        <p>Aluno: <strong>Daniel Taveira</strong></p>
-        <p>Estado da Infraestrutura: <span class="status">ONLINE E AUTOMATIZADA (CI/CD)</span></p>
-        <hr>
-        <p><i>Serviço Web servido através de Nginx em Docker</i></p>
+
+    <h1>Plataforma de Serviços de Rede Contentorizados</h1>
+    <p>Engenharia Informática | IPB ESTG - Painel de Controlo da Infraestrutura</p>
+
+    <div class="grid">
+        <!-- Grafana -->
+        <a href="/grafana/" target="_blank" class="card">
+            <h3><span class="status"></span>Grafana</h3>
+            <p>Métricas de Hardware, logs centralizados e Dashboards do cAdvisor.</p>
+        </a>
+
+        <!-- Nextcloud -->
+        <a href="/nextcloud/" target="_blank" class="card">
+            <h3><span class="status"></span>Nextcloud</h3>
+            <p>Servidor de Armazenamento e Cloud Privada Corporativa.</p>
+        </a>
+
+        <!-- Pi-hole -->
+        <a href="http://192.168.1.252:8080/admin/" target="_blank" class="card">
+            <h3><span class="status"></span>Pi-hole DNS</h3>
+            <p>Administração do Servidor DNS e Bloqueador de Anúncios.</p>
+        </a>
+
+        <!-- Prometheus -->
+        <a href="http://192.168.1.252:9090" target="_blank" class="card">
+            <h3><span class="status"></span>Prometheus</h3>
+            <p>Base de dados temporal e estado de Targets da monitorização.</p>
+        </a>
+
+        <!-- Loki -->
+        <a href="http://192.168.1.252:3100/ready" target="_blank" class="card">
+            <h3><span class="status"></span>Loki Status</h3>
+            <p>Verificação de prontidão do microsserviço de agregação de Logs.</p>
+        </a>
     </div>
-    <div style="margin-top: 20px;">
-    <h3>Acessos Rápidos:</h3>
-    <ul>
-        <li><a href="http://192.168.1.252:8080/admin" target="_blank">Painel Pi-hole (DNS)</a></li>
-        <li><a href="http://192.168.1.252:3000" target="_blank">Painel Grafana (Métricas)</a></li>
-        <li><a href="https://192.168.1.252:8081" target="_blank">Acesso Nextcloud (Ficheiros)</a></li>
-    </ul>
-</div>
+
 </body>
 </html>

@@ -5,7 +5,7 @@
   become: yes
 
   vars_files:
-    - vars/secrets.yml # Carrega as variaveis encriptadas pelo Ansible Vault
+    - vars/secrets.yml 
 
   tasks:
     - name: Garantir que a pasta de destino dos servicos existe
@@ -14,7 +14,7 @@
         state: directory
         mode: '0755'
 
-    - name: Copiar pastas de configuracao essenciais (Nginx, Prometheus, Promtail, Web)
+    - name: Copiar pastas de configuracao essenciais (Nginx, Prometheus, Promtail, Grafana, Web)
       ansible.builtin.copy:
         src: "../servicos/{{ item }}"
         dest: /opt/plataforma_servicos/
@@ -23,14 +23,14 @@
         - nginx
         - prometheus
         - promtail
-        - grafana
+        - grafana # Enviado automaticamente para o servidor hospedeiro
         - web
 
     - name: Copiar e configurar o ficheiro docker-compose.yml com os segredos do Vault
       ansible.builtin.template:
         src: ../servicos/docker-compose.yml
         dest: /opt/plataforma_servicos/docker-compose.yml
-        mode: '0600' # Permissao estrita de seguranca
+        mode: '0600' 
 
     - name: Executar o Docker Compose para levantar a infraestrutura
       community.docker.docker_compose_v2:
