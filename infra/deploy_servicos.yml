@@ -23,6 +23,7 @@
         - nginx
         - prometheus
         - promtail
+        - grafana
         - web
 
     - name: Copiar e configurar o ficheiro docker-compose.yml com os segredos do Vault

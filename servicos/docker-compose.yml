@@ -142,6 +142,8 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD={{ vault_grafana_password }}
       - GF_SERVER_ROOT_URL=http://192.168.1.252/grafana/
       - GF_SERVER_SERVE_FROM_SUB_PATH=true
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning
     networks:
       - rede_interna
 

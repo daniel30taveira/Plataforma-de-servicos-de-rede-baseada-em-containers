@@ -1,0 +1,12 @@
+# Avisa o Grafana para carregar automaticamente qualquer dashboard em formato JSON que coloque dentro da pasta local
+apiVersion: 1
+
+providers:
+  - name: 'Dashboards Automatizados'
+    orgId: 1
+    folder: ''
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /etc/grafana/provisioning/dashboards
