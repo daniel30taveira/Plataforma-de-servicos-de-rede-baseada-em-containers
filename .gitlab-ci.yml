@@ -1,13 +1,13 @@
 stages:
   - deploy
-
+ 
 deploy_infraestrutura:
   stage: deploy
   tags:
-    - meu-runner-local 
+    - meu-runner-local
   script:
-    - echo "A iniciar o deploy automático via CI/CD..."
+    - echo "A iniciar o deploy automatico com segredos do Vault..."
     - cd infra
-    # Corre o Ansible localmente, dizendo-lhe que o inventário é a própria máquina
-    - sudo ansible-playbook -i "localhost," -c local deploy_servicos.yml
-    - echo "Deploy concluído com sucesso!"
+    # Argumento --vault-password-file para o Ansible saber ler o segredo localmente sem travar a pipeline
+    - sudo ansible-playbook -i "localhost," -c local --vault-password-file /home/daniel/.vault_pass.txt deploy_servicos.yml
+    - echo "Deploy concluido com sucesso!"
