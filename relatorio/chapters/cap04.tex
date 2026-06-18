@@ -9,11 +9,18 @@ Antes de detalhar a implementação, importa descrever a arquitetura global da p
  
 \begin{enumerate}
     \item \textbf{Camada de infraestrutura:} a máquina física Windows com VMware Workstation a correr uma VM Ubuntu Server 24.04 LTS em modo \textit{Bridged} na rede local.
-    \item \textbf{Camada de serviços:} os \textit{containers} Docker (Nginx, Pi-hole, WireGuard, Prometheus, Node Exporter, Grafana) a comunicar através de uma rede interna Docker (\texttt{rede\_interna}).
+    \item \textbf{Camada de serviços:} os \textit{containers} Docker (Nginx, Pi-hole, WireGuard, Nextcloud, Docker-Mailserver, Prometheus, Node Exporter, Loki, Promtail e Grafana) a comunicar através de uma rede interna Docker (\texttt{rede\_interna}).
     \item \textbf{Camada de automação:} o Ansible (executado via WSL na máquina Windows) e a \textit{pipeline} GitLab CI/CD (executada pelo Runner instalado no servidor Ubuntu).
 \end{enumerate}
  
-Todo o tráfego externo entra pelo Nginx nas portas 80/443, ou diretamente pelo WireGuard na porta UDP 51821. Os serviços internos comunicam exclusivamente através da rede Docker \texttt{bridge} isolada, sem exposição desnecessária de portas ao exterior.
+Todo o tráfego externo entra pelo Nginx nas portas 80/443, ou diretamente pelo WireGuard na porta UDP 51821. Os serviços internos comunicam exclusivamente através da rede Docker \texttt{bridge} isolada, sem exposição desnecessária de portas ao exterior. Para uma melhor compreensão desta segmentação e interligação funcional, a Figura~\ref{fig:esquema_3_camadas} apresenta o esquema conceptual detalhado das três camadas propostas para o sistema.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.9\textwidth]{esquema_conceptual_3camadas.png}
+    \caption{Esquema conceptual da arquitetura da plataforma baseado em 3 camadas.}
+    \label{fig:esquema_3_camadas}
+\end{figure}
  
 \section{Configuração do Ambiente Base (Ubuntu Server)}
  
@@ -31,7 +38,7 @@ O Ubuntu Server 24.04 LTS foi instalado numa VM VMware com as seguintes especifi
 \subsection{Configuração de IP Estático com Netplan}
 \label{sec:netplan}
  
-Para garantir que o servidor mantém sempre o mesmo endereço IP na rede local --- condição essencial para o correto funcionamento do DNS, da VPN e das entradas do inventário Ansible ---, procedeu-se à configuração de um IP estático através do Netplan \cite{netplan_docs}.
+Para garantire que o servidor mantém sempre o mesmo endereço IP na rede local --- condição essencial para o correto funcionamento do DNS, da VPN e das entradas do inventário Ansible ---, procedeu-se à configuração de um IP estático através do Netplan \cite{netplan_docs}.
  
 \subsubsection*{Problema Encontrado: Erros de Indentação YAML e Falhas de DNS}
  
@@ -42,7 +49,7 @@ Durante a configuração, foram cometidos dois erros distintos:
 \begin{enumerate}
     \item \textbf{Erro de indentação:} A secção \texttt{nameservers} foi indentada ao nível errado, resultando no erro \texttt{Invalid YAML at /etc/netplan/00-installer-config.yaml}. O problema foi diagnosticado com o comando \texttt{netplan try}, que aplica a configuração temporariamente durante 120 segundos e reverte automaticamente se não for confirmada --- mecanismo de segurança crucial para evitar perda de acesso remoto ao servidor.
  
-    \item \textbf{Falha de resolução DNS:} Após corrigir a indentação e aplicar o IP estático, o servidor perdeu capacidade de resolução de nomes de domínio. A causa foi a omissão dos \texttt{nameservers} na configuração. O servidor tentava resolver nomes através de si próprio (o Pi-hole ainda não estava instalado), resultando em falhas de DNS. A solução imediata foi adicionar explicitamente os servidores DNS do Google (\texttt{8.8.8.8} e \texttt{8.8.4.4}) na configuração Netplan, até o Pi-hole estar operacional.
+    \item \textbf{Falha de resolução DNS:} Após corrigir a indentação e aplicar o IP estático, o servidor ganhou o endereço mas perdeu capacidade de resolução de nomes de domínio. A causa foi a omissão dos \texttt{nameservers} na configuração. O servidor tentava resolver nomes através de si próprio (o Pi-hole ainda não estava instalado), resultando em falhas de DNS. A solução imediata foi adicionar explicitamente os servidores DNS do Google (\texttt{8.8.8.8} e \texttt{8.8.4.4}) na configuração Netplan, até o Pi-hole estar operacional.
 \end{enumerate}
  
 A configuração Netplan final, corretamente indentada, ficou com o seguinte aspeto:
@@ -104,10 +111,16 @@ A Figura~\ref{fig:ansible_sucesso} ilustra o \textit{Play Recap} de uma execuç�
     \caption{Execução bem-sucedida do \textit{Playbook} \texttt{setup\_docker.yml} --- \textit{Play Recap} com \texttt{failed=0}.}
     \label{fig:ansible_sucesso}
 \end{figure}
+
+\subsection{Criptografia e Gestão de Segredos com Ansible Vault}
+\label{sec:ansible_vault}
+Atendendo à necessidade de robustez na gestão de segredos (\textit{hardening} da plataforma), foi integrada a ferramenta de cifra \textbf{Ansible Vault}. Esta adição arquitetural resolve o risco de manter credenciais administrativas em formato de texto limpo dentro do repositório Git. 
+
+Ficheiros contendo variáveis sensíveis, como a password de administração do Pi-hole (\texttt{WEBPASSWORD}) e do Grafana, foram encriptados de forma simétrica com o algoritmo AES-256. O Ansible descriptografa estas variáveis apenas em memória durante a execução do deploy automático, utilizando um ficheiro de chave temporário e protegido na pipeline, garantindo a integridade e confidencialidade dos segredos do sistema.
  
 \section{Implementação dos Serviços via Docker Compose}
  
-Todos os serviços são definidos no ficheiro \texttt{docker-compose.yml} e partilham uma rede interna Docker designada \texttt{rede\_interna}, do tipo \texttt{bridge}. Esta rede isola os \textit{containers} da rede do \textit{host} e permite-lhes comunicar entre si através de nomes de serviço (DNS interno do Docker), sem exposição desnecessária de portas ao exterior \cite{docker_security}. Apenas as portas estritamente necessárias são publicadas no \textit{host}: 80 e 443 (Nginx), 53 TCP/UDP (Pi-hole), 8080 (painel Pi-hole), 9090 (Prometheus), 9100 (Node Exporter), 3000 (Grafana) e 51821 UDP (WireGuard).
+Todos os serviços são definidos no ficheiro \texttt{docker-compose.yml} e partilham uma rede interna Docker designada \texttt{rede\_interna}, do tipo \texttt{bridge}. Esta rede isola os \textit{containers} da rede do \textit{host} e permite-lhes comunicar entre si através de nomes de serviço (DNS interno do Docker), sem exposição desnecessária de portas ao exterior \cite{docker_security}. Apenas as portas estritamente necessárias são publicadas no \textit{host}: 80 e 443 (Nginx), 53 TCP/UDP (Pi-hole), 8080 (painel Pi-hole), 9090 (Prometheus), 9100 (Node Exporter), 3000 (Grafana), 3100 (Loki) e 51821 UDP (WireGuard).
  
 \subsection{Servidor DNS: Pi-hole}
 \label{sec:pihole}
@@ -129,13 +142,15 @@ A solução definitiva para evitar recorrência seria eliminar o volume antes de
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=0.9\textwidth]{pihole_admin.png}
-    \caption{Interface de administração do servidor DNS (Pi-hole) a correr em \textit{container}.}
+    \caption{Interface de administração do servidor DNS (Pi-hole) a correr in \textit{container}.}
     \label{fig:pihole_admin}
 \end{figure}
  
 \subsection{Servidor Web e \textit{Reverse Proxy}: Nginx}
  
-O Nginx é configurado com um volume Docker em modo \textit{read-only} (\texttt{:ro}) que mapeia a pasta local \texttt{./web} para o diretório de conteúdo estático do Nginx (\texttt{/usr/share/nginx/html}) \cite{nginx_docs, nginx_reverseproxy_guide}. Esta abordagem tem dois benefícios: o conteúdo HTML pode ser atualizado sem reconstruir o \textit{container}; e o \textit{container} Nginx não tem permissões de escrita sobre os ficheiros que serve --- em conformidade com o princípio do mínimo privilégio \cite{nist_containers}, um atacante que comprometesse o processo Nginx não conseguiria modificar os ficheiros originais. A Figura~\ref{fig:pagina_web_nginx} demonstra a página de estado da infraestrutura.
+O Nginx é configurado com um volume Docker em modo \textit{read-only} (\texttt{:ro}) que mapeia a pasta local \texttt{./web} para o diretório de conteúdo estático do Nginx (\texttt{/usr/share/nginx/html}) \cite{nginx_docs, nginx_reverseproxy_guide}. Esta abordagem tem dois benefícios: o conteúdo HTML pode ser atualizado sem reconstruir o \textit{container}; e o \textit{container} Nginx não tem permissões de escrita sobre os ficheiros que serve --- em conformidade com o princípio do mínimo privilégio \cite{nist_containers}, um atacante que comprometesse o processo Nginx não conseguiria modificar os ficheiros originais. 
+
+Além disso, o Nginx atua como Reverse Proxy completo, intercetando todos os pedidos HTTP direcionados para os subcaminhos organizados da plataforma (como \texttt{/grafana/} e \texttt{/nextcloud/}), encaminhando o tráfego de forma limpa pela rede interna sem expor os portos das aplicações para o exterior. A Figura~\ref{fig:pagina_web_nginx} demonstra a página de estado da infraestrutura.
  
 \begin{figure}[htbp]
     \centering
@@ -150,7 +165,7 @@ O Nginx é configurado com um volume Docker em modo \textit{read-only} (\texttt{
 O WireGuard foi implementado utilizando a imagem \texttt{lscr.io/linuxserver/wireguard}, mantida pela comunidade LinuxServer.io \cite{wireguard_linuxserver}, que simplifica a geração automática de configurações de cliente relativamente à imagem oficial \cite{donenfeld2017wireguard}. As configurações mais relevantes do serviço são:
  
 \begin{itemize}
-    \item \texttt{SERVERURL=2.83.165.235}: IP público do servidor, necessário para que os clientes externos saibam para onde se ligar.
+    \item \texttt{SERVERURL=daniel-infra.ddns.net}: Utilização obrigatória de um nome de \textbf{Dynamic DNS (DDNS)} em vez de um endereço IP público estático. Esta abordagem resolve a volatilidade do IP público atribuído pelo operador residencial, garantindo que mesmo que o IP mude, o domínio aponta automaticamente para o novo endereço e os clientes mantêm a capacidade de estabelecer o túnel de forma persistente.
     \item \texttt{SERVERPORT=51821}: porta UDP utilizada pelo WireGuard nesta instalação. A porta padrão (51820) foi alterada para 51821 após se detetar um conflito com outro serviço no \textit{router} MEO --- este ajuste foi registado no repositório com a mensagem de \textit{commit} \texttt{fix: muda porta da VPN para 51821 devido a conflito no router} (30 de abril de 2026).
     \item \texttt{PEERS=3}: gera automaticamente três perfis de cliente, incluindo ficheiros de configuração e QR codes. O número de \textit{peers} foi aumentado de 2 para 3 numa iteração posterior (\textit{commit} \texttt{feat: atualiza IP publico e aumenta peers da VPN}), para acomodar um dispositivo adicional.
     \item \texttt{PEERDNS=192.168.1.252}: obriga os clientes VPN a utilizar o Pi-hole como servidor DNS, garantindo que o bloqueio de domínios e a resolução de nomes internos funcionam também em modo VPN.
@@ -177,7 +192,7 @@ O processo de diagnóstico foi estruturado em camadas. Primeiro, verificou-se qu
 sudo tcpdump -i ens33 udp port 51821 -n
 \end{lstlisting}
  
-O resultado foi revelador: \textbf{zero pacotes capturados}. Isto significava que os pacotes enviados pelo telemóvel não estavam a chegar à interface de rede do servidor, eliminando qualquer hipótese de problema na configuração do WireGuard ou do \textit{container}. A ausência de pacotes na interface \texttt{ens33} indicava que o \textit{router} MEO estava a filtrar o tráfego UDP externo.
+O resultado foi revelador: \textbf{zero pacotes capturados}. Isto significava que os pacotes enviados pelo telemóvel não estavam a chegar à interface de rede do servidor, eliminando qualquer hipótese de problema na configuração do WireGuard ou do \textit{container}. A ausencia de pacotes na interface \texttt{ens33} indicava que o \textit{router} MEO estava a filtrar o tráfego UDP externo.
  
 A solução foi configurar o \textit{router} em modo \textbf{DMZ} \cite{dmz_cloudflare} apontado para o IP do servidor (\texttt{192.168.1.252}), seguido de um reinício físico do \textit{router} (um reinício por software não foi suficiente). Após isso, os pacotes UDP passaram a ser visíveis no \texttt{tcpdump} e a ligação VPN foi estabelecida com sucesso, conforme comprova a Figura~\ref{fig:wireguard_ligado}.
  
@@ -233,9 +248,10 @@ Para que o utilizador do \textit{Runner} possa executar o Ansible com \texttt{su
     \label{fig:pipeline_sucesso}
 \end{figure}
  
-\section{Observabilidade: Prometheus, Node Exporter e Grafana}
+\section{Observabilidade Avançada: Múltiplos Dashboards no Grafana}
+\label{sec:dashboards_grafana}
  
-O Prometheus é configurado através do ficheiro \texttt{prometheus.yml}, montado como volume \textit{read-only} no \textit{container} \cite{prometheus_docs}. O ficheiro define dois \textit{scrape jobs}: \texttt{prometheus} (porto 9090) e \texttt{node-exporter} (porto 9100), referenciado pelo nome do serviço Docker (\texttt{node-exporter:9100}), utilizando o DNS interno da rede Docker. O intervalo de \textit{scrape} foi configurado a 15 segundos. A Figura~\ref{fig:prometheus_targets} comprova que ambos os \textit{targets} estão no estado \textit{UP}.
+O Prometheus é configurado através do ficheiro \texttt{prometheus.yml}, montado como volume \textit{read-only} no \textit{container} \cite{prometheus_docs}. O ficheiro define os \textit{scrape jobs} necessários referenciados pelo DNS interno da rede Docker. O intervalo de \textit{scrape} foi configurado a 15 segundos. A Figura~\ref{fig:prometheus_targets} comprova que ambos os \textit{targets} estão no estado \textit{UP}.
  
 \begin{figure}[htbp]
     \centering
@@ -244,7 +260,15 @@ O Prometheus é configurado através do ficheiro \texttt{prometheus.yml}, montad
     \label{fig:prometheus_targets}
 \end{figure}
  
-O Grafana foi configurado com a palavra-passe de administrador por variável de ambiente (\texttt{GF\_SECURITY\_ADMIN\_PASSWORD}) \cite{grafana_docs}. Após o primeiro acesso, foi adicionado o Prometheus como \textit{Data Source} e importado o painel \textbf{Node Exporter Full} (ID 1860 \cite{grafana_node_dashboard}). A Figura~\ref{fig:grafana_datasource} mostra a configuração da ligação entre o Grafana e o Prometheus, e a Figura~\ref{fig:grafana_dashboard} ilustra o painel de monitorização em tempo real.
+O Grafana foi configurado com a palavra-passe de administrador protegida por variável de ambiente \cite{grafana_docs}. Com o intuito de expandir a visibilidade do operador sobre os diferentes vetores do sistema, foram estruturados e configurados três dashboards analíticos na interface unificada:
+ 
+\begin{enumerate}
+    \item \textbf{Dashboard de Desempenho do Host (Node Exporter):} Utilizando o ID oficial 1860, apresenta métricas em tempo real sobre a saturação de CPU, consumo de memória RAM, leituras de disco I/O e tráfego ativo nas interfaces de rede do servidor hospedeiro Ubuntu (Figura~\ref{fig:grafana_dashboard}).
+    \item \textbf{Dashboard de Estado dos Contentores (cAdvisor):} Focado na saúde individual dos containers Docker em execução. Permite monitorizar picos isolados de consumo e diagnosticar se o Nextcloud, Mailserver ou o Nginx apresentam perdas de pacotes ou comportamentos anómalos.
+    \item \textbf{Dashboard de Auditoria de Segurança e Logs (Grafana Loki):} Integrado dinamicamente com o agente Promtail. Centraliza a recolha de todos os logs gerados pelo sistema operativo e pelo output dos containers, facilitando a deteção e análise de tentativas de intrusão por SSH, falhas do servidor de e-mail e acessos negados no router de fronteira.
+\end{enumerate}
+
+A Figura~\ref{fig:grafana_datasource} mostra a configuração da ligação entre o Grafana e o Prometheus, e a Figura~\ref{fig:grafana_dashboard} ilustra o painel de monitorização em tempo real.
  
 \begin{figure}[htbp]
     \centering
@@ -278,13 +302,13 @@ Mínimo privilégio & Utilizador \texttt{daniel} no grupo \texttt{docker} (sem \
 \hline
 Isolamento de rede & Rede Docker interna (\texttt{bridge}) sem exposição desnecessária & Todos \\
 \hline
-Encriptação de tráfego & WireGuard (ChaCha20-Poly1305) para acesso remoto & WireGuard \\
+Encriptação de tráfego & WireGuard (ChaCha20-Poly1305) para acesso remoto com DDNS & WireGuard \\
 \hline
 Encriptação de tráfego & HTTPS (TLS) via Nginx (a implementar com Let's Encrypt) & Nginx \\
 \hline
-Isolamento de \textit{capabilities} & \texttt{cap\_add} limitado ao estritamente necessário & WireGuard \\
+Proteção de Segredos & Cifragem AES-256 via Ansible Vault em variáveis de configuração & Ansible / Todos \\
 \hline
-Gestão de segredos & Palavras-passe por variáveis de ambiente (não em código) & Pi-hole, Grafana \\
+Isolamento de \textit{capabilities} & \texttt{cap\_add} limitado ao estritamente necessário & WireGuard \\
 \hline
 \end{tabulary}
 \end{table}
