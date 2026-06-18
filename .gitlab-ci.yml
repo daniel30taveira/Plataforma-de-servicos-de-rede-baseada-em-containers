@@ -8,6 +8,10 @@ deploy_infraestrutura:
   script:
     - echo "A iniciar o deploy automatico com segredos do Vault..."
     - cd infra
-    # Argumento --vault-password-file para o Ansible saber ler o segredo localmente sem travar a pipeline
-    - sudo ansible-playbook -i "localhost," -c local --vault-password-file /home/daniel/.vault_pass.txt deploy_servicos.yml
+    # Injeta a variavel secreta do GitLab num ficheiro temporario local
+    - echo "$ANSIBLE_VAULT_PASSWORD" > .vault_key
+    # Executa o playbook apontando para a chave temporaria
+    - sudo ansible-playbook -i "localhost," -c local --vault-password-file .vault_key deploy_servicos.yml
+    # Remove a chave por boas praticas de seguranca
+    - rm -f .vault_key
     - echo "Deploy concluido com sucesso!"
