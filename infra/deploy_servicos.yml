@@ -1,21 +1,27 @@
 ---
-- name: Deploy dos Serviços do Data Center (Docker Compose)
-  hosts: all
+- name: Deploy da Stack de Servicos de Rede Contentorizados
+  hosts: localhost
+  connection: local
   become: yes
 
+  vars_files:
+    - vars/secrets.yml # Carrega as variaveis encriptadas pelo Ansible Vault
+
   tasks:
-    - name: Garantir que a pasta do projeto existe no servidor
-      file:
-        path: /opt/datacenter/servicos
+    - name: Garantir que a pasta de destino dos servicos existe
+      ansible.builtin.file:
+        path: /opt/plataforma_servicos
         state: directory
         mode: '0755'
 
-    - name: Copiar a pasta 'servicos' do nosso PC para o servidor
-      copy:
-        src: ../servicos/
-        dest: /opt/datacenter/servicos/
+    - name: Copiar e configurar o ficheiro docker-compose.yml com os segredos do Vault
+      ansible.builtin.template:
+        src: templates/docker-compose.yml.j2
+        dest: /opt/plataforma_servicos/docker-compose.yml
+        mode: '0600' # Permissao estrita: apenas o dono pode ler o ficheiro com as passwords resolvidas
 
-    - name: Arrancar os containers em modo detached (background)
-      command: docker compose up -d
-      args:
-        chdir: /opt/datacenter/servicos
+    - name: Executar o Docker Compose para levantar a infraestrutura
+      community.docker.docker_compose_v2:
+        project_src: /opt/plataforma_servicos
+        state: present
+        pull: missing
