@@ -14,11 +14,22 @@
         state: directory
         mode: '0755'
 
+    - name: Copiar pastas de configuracao essenciais (Nginx, Prometheus, Promtail, Web)
+      ansible.builtin.copy:
+        src: "../servicos/{{ item }}"
+        dest: /opt/plataforma_servicos/
+        mode: '0755'
+      loop:
+        - nginx
+        - prometheus
+        - promtail
+        - web
+
     - name: Copiar e configurar o ficheiro docker-compose.yml com os segredos do Vault
       ansible.builtin.template:
         src: ../servicos/docker-compose.yml
         dest: /opt/plataforma_servicos/docker-compose.yml
-        mode: '0600' # Permissao estrita: apenas o dono pode ler o ficheiro com as passwords resolvidas
+        mode: '0600' # Permissao estrita de seguranca
 
     - name: Executar o Docker Compose para levantar a infraestrutura
       community.docker.docker_compose_v2:
