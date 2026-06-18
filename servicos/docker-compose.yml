@@ -27,7 +27,7 @@ services:
       - "8080:80" # Painel de controlo administrativo do DNS
     environment:
       TZ: 'Europe/Lisbon'
-      WEBPASSWORD: '123.,' 
+      WEBPASSWORD: "{{ vault_pihole_password }}"
     networks:
       - rede_interna
 
@@ -139,7 +139,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ADMIN_PASSWORD={{ vault_grafana_password }}
       - GF_SERVER_ROOT_URL=http://192.168.1.252/grafana/
       - GF_SERVER_SERVE_FROM_SUB_PATH=true
     networks:

@@ -16,7 +16,7 @@
 
     - name: Copiar e configurar o ficheiro docker-compose.yml com os segredos do Vault
       ansible.builtin.template:
-        src: templates/docker-compose.yml.j2
+        src: ../servicos/docker-compose.yml
         dest: /opt/plataforma_servicos/docker-compose.yml
         mode: '0600' # Permissao estrita: apenas o dono pode ler o ficheiro com as passwords resolvidas
 
