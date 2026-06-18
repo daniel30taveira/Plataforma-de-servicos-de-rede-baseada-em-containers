@@ -3,54 +3,320 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Data Center - Daniel Taveira</title>
+    <title>Painel de Administração - Data Center</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #1e1e24; color: #fff; margin: 0; padding: 20px; text-align: center; }
-        h1 { color: #f39c12; margin-bottom: 10px; }
-        p { color: #aaa; margin-bottom: 30px; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; max-width: 1000px; margin: 0 auto; }
-        .card { background: #2c2c35; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); transition: transform 0.3s; text-decoration: none; color: inherit; display: block; }
-        .card:hover { transform: translateY(-5px); border: 2px solid #f39c12; }
-        .card h3 { margin: 0 0 10px 0; color: #f39c12; }
-        .card p { margin: 0; font-size: 14px; color: #bbb; }
-        .status { display: inline-block; width: 10px; height: 10px; background: #2ecc71; border-radius: 50%; margin-right: 8px; }
+        :root {
+            --bg-color: #0f1015;
+            --card-bg: #1a1c24;
+            --accent-orange: #f39c12;
+            --accent-blue: #3498db;
+            --text-main: #ffffff;
+            --text-muted: #a0a5b5;
+            --status-green: #2ecc71;
+        }
+
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 40px 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            box-sizing: border-box;
+        }
+
+        /* Contentor Principal */
+        .container {
+            width: 100%;
+            max-width: 1100px;
+        }
+
+        /* Cabeçalho Principal */
+        header {
+            background: linear-gradient(135deg, #1e2230 0%, #151821 100%);
+            padding: 35px;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            border-left: 5px solid var(--accent-orange);
+            margin-bottom: 40px;
+            text-align: left;
+        }
+
+        header h1 {
+            margin: 0 0 10px 0;
+            font-size: 28px;
+            letter-spacing: 0.5px;
+            color: var(--text-main);
+        }
+
+        header h2 {
+            margin: 0 0 25px 0;
+            font-size: 16px;
+            font-weight: 400;
+            color: var(--accent-blue);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        /* Grade de Informações Académicas */
+        .meta-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 20px;
+            border-top: 1px solid #2d3142;
+            padding-top: 20px;
+        }
+
+        .meta-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .meta-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            letter-spacing: 1px;
+            margin-bottom: 4px;
+        }
+
+        .meta-value {
+            font-size: 15px;
+            font-weight: 600;
+            color: #e2e4e9;
+        }
+
+        /* Seção de Serviços */
+        .section-title {
+            font-size: 18px;
+            color: var(--text-muted);
+            text-align: left;
+            margin-bottom: 20px;
+            letter-spacing: 0.5px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section-title::after {
+            content: '';
+            flex-grow: 1;
+            height: 1px;
+            background: #2d3142;
+        }
+
+        /* Grid de Cartões */
+        .services-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 25px;
+        }
+
+        /* Estilo dos Cartões */
+        .card {
+            background-color: var(--card-bg);
+            border: 1px solid #232632;
+            padding: 25px;
+            border-radius: 14px;
+            text-decoration: none;
+            color: inherit;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            box-shadow: 0 6px 18px rgba(0,0,0,0.2);
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+            background-color: transparent;
+            transition: background-color 0.3s;
+        }
+
+        .card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 24px rgba(0,0,0,0.4);
+            border-color: #34495e;
+        }
+
+        .card:hover::before {
+            background-color: var(--accent-orange);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .card-title {
+            font-size: 19px;
+            font-weight: 600;
+            margin: 0;
+            color: #ffffff;
+        }
+
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 11px;
+            background: rgba(46, 204, 113, 0.1);
+            color: var(--status-green);
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background-color: var(--status-green);
+            border-radius: 50%;
+            box-shadow: 0 0 8px var(--status-green);
+        }
+
+        .card p {
+            margin: 0 0 20px 0;
+            font-size: 14px;
+            color: var(--text-muted);
+            line-height: 1.5;
+            text-align: left;
+        }
+
+        .card-footer {
+            font-size: 12px;
+            color: var(--accent-blue);
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            text-align: left;
+        }
+
+        /* Rodapé da Página */
+        footer {
+            margin-top: 60px;
+            font-size: 12px;
+            color: #565d70;
+            letter-spacing: 0.5px;
+        }
     </style>
 </head>
 <body>
 
-    <h1>Plataforma de Serviços de Rede Contentorizados</h1>
-    <p>Engenharia Informática | IPB ESTG - Painel de Controlo da Infraestrutura</p>
+    <div class="container">
+        <header>
+            <h1>Plataforma de Serviços de Rede Baseada em Contentores</h1>
+            <h2>Trabalho de Projeto — Engenharia Informática</h2>
+            
+            <div class="meta-grid">
+                <div class="meta-item">
+                    <span class="meta-label">Autor / Aluno</span>
+                    <span class="meta-value">Daniel Taveira (a44319)</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Orientador</span>
+                    <span class="meta-value">Prof. Nuno Rodrigues</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Instituição</span>
+                    <span class="meta-value">IPB — ESTiG Bragança</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Ano Académico</span>
+                    <span class="meta-value">2025 / 2026</span>
+                </div>
+            </div>
+        </header>
 
-    <div class="grid">
-        <!-- Grafana -->
-        <a href="/grafana/" target="_blank" class="card">
-            <h3><span class="status"></span>Grafana</h3>
-            <p>Métricas de Hardware, logs centralizados e Dashboards do cAdvisor.</p>
-        </a>
+        <div class="section-title">Acessos Rápidos aos Serviços da Stack</div>
 
-        <!-- Nextcloud -->
-        <a href="/nextcloud/" target="_blank" class="card">
-            <h3><span class="status"></span>Nextcloud</h3>
-            <p>Servidor de Armazenamento e Cloud Privada Corporativa.</p>
-        </a>
+        <div class="services-grid">
+            
+            <a href="/grafana/" target="_blank" class="card">
+                <div>
+                    <div class="card-header">
+                        <h3 class="card-title">Grafana Dashboards</h3>
+                        <div class="status-badge"><span class="status-dot"></span>Online</div>
+                    </div>
+                    <p>Painel analítico centralizado. Monitorização do host (Node Exporter) e logs estruturados em tempo real extraídos via Loki.</p>
+                </div>
+                <div class="card-footer">Aceder às Métricas &rarr;</div>
+            </a>
 
-        <!-- Pi-hole -->
-        <a href="http://192.168.1.252:8080/admin/" target="_blank" class="card">
-            <h3><span class="status"></span>Pi-hole DNS</h3>
-            <p>Administração do Servidor DNS e Bloqueador de Anúncios.</p>
-        </a>
+            <a href="/nextcloud/" target="_blank" class="card">
+                <div>
+                    <div class="card-header">
+                        <h3 class="card-title">Nextcloud Cloud</h3>
+                        <div class="status-badge"><span class="status-dot"></span>Online</div>
+                    </div>
+                    <p>Serviço corporativo de armazenamento de ficheiros em nuvem privada com isolamento persistente de dados e volumes.</p>
+                </div>
+                <div class="card-footer">Abrir Armazenamento &rarr;</div>
+            </a>
 
-        <!-- Prometheus -->
-        <a href="http://192.168.1.252:9090" target="_blank" class="card">
-            <h3><span class="status"></span>Prometheus</h3>
-            <p>Base de dados temporal e estado de Targets da monitorização.</p>
-        </a>
+            <a href="http://192.168.1.252:8080/admin/" target="_blank" class="card">
+                <div>
+                    <div class="card-header">
+                        <h3 class="card-title">Pi-hole DNS</h3>
+                        <div class="status-badge"><span class="status-dot"></span>Online</div>
+                    </div>
+                    <p>Servidor DNS local e resolutor da infraestrutura. Implementa mecanismos de filtragem de tráfego e bloqueio de anúncios.</p>
+                </div>
+                <div class="card-footer">Consola de Administração &rarr;</div>
+            </a>
 
-        <!-- Loki -->
-        <a href="http://192.168.1.252:3100/ready" target="_blank" class="card">
-            <h3><span class="status"></span>Loki Status</h3>
-            <p>Verificação de prontidão do microsserviço de agregação de Logs.</p>
-        </a>
+            <div class="card">
+                <div>
+                    <div class="card-header">
+                        <h3 class="card-title">WireGuard VPN</h3>
+                        <div class="status-badge"><span class="status-dot"></span>Ativo</div>
+                    </div>
+                    <p>Túnel cifrado para acesso remoto seguro. Integração com <strong>Dynamic DNS (DDNS)</strong> apontando para <code>daniel-infra.ddns.net</code>.</p>
+                </div>
+                <div class="card-footer" style="color: var(--text-muted);">Porta Exposta: 51821/UDP</div>
+            </div>
+
+            <div class="card">
+                <div>
+                    <div class="card-header">
+                        <h3 class="card-title">Mailserver Corporativo</h3>
+                        <div class="status-badge"><span class="status-dot"></span>Ativo</div>
+                    </div>
+                    <p>Servidor de e-mail completo (`Postfix/Dovecot`) com suporte a IMAP/SMTP, Antispam e Fail2ban, operando no domínio local <code>local.lan</code>.</p>
+                </div>
+                <div class="card-footer" style="color: var(--text-muted);">Contas geridas via Docker CLI</div>
+            </div>
+
+            <a href="http://192.168.1.252:9090" target="_blank" class="card">
+                <div>
+                    <div class="card-header">
+                        <h3 class="card-title">Prometheus Core</h3>
+                        <div class="status-badge"><span class="status-dot"></span>Online</div>
+                    </div>
+                    <p>Base de dados temporal e motor de recolha (scraping) de métricas de telemetria da arquitetura de microsserviços.</p>
+                </div>
+                <div class="card-footer">Visualizar Targets &rarr;</div>
+            </a>
+
+        </div>
+
+        <footer>
+            Infraestrutura de Rede e Automação DevOps gerada via Ansible Playbooks & Docker Compose.
+        </footer>
     </div>
 
 </body>
