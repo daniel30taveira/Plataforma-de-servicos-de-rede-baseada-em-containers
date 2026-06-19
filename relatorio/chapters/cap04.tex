@@ -223,9 +223,24 @@ Além disso, o Nginx atua como Reverse Proxy completo, intercetando todos os ped
 Com vista a cobrir o leque completo de requisitos, integraram-se os serviços corporativos de partilha de ficheiros e comunicações:
 \begin{itemize}
     \item \textbf{Nextcloud:} A nuvem privada foi implementada garantindo persistência robusta. Os volumes do Nextcloud foram mapeados para o diretório local da aplicação, assegurando que o armazenamento dos ficheiros dos utilizadores sobrevive a recriações do contentor.
+    
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\textwidth]{nextcloud_inicial.png}
+    \caption{Interface de acesso ao Nextcloud (Nuvem Privada).}
+    \label{fig:nextcloud_inicial}
+\end{figure}
+
     \item \textbf{Docker-Mailserver:} O contentor de e-mail iniciou os protocolos SMTP e IMAP. Durante a implementação, a estabilização completa da stack Dovecot/Postfix exigiu algum tempo de latência de \textit{boot}. A gestão de contas (\textit{e.g.,} criação do utilizador \texttt{daniel@local.lan}) foi configurada via CLI utilizando a ferramenta administrativa interna \texttt{setup email add}.
 \end{itemize}
- 
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\textwidth]{mailserver_status.png}
+    \caption{Validação do serviço Docker-Mailserver através de comandos administrativos.}
+    \label{fig:mailserver_status}
+\end{figure}
+
 \subsection{VPN: WireGuard}
 \label{sec:wireguard}
  
