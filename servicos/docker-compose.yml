@@ -69,8 +69,8 @@ services:
       - PGID=1000
       - TZ=Europe/Lisbon
     volumes:
-      - ./nextcloud/appdata:/config
-      - ./nextcloud/data:/data
+      - ./servicos/nextcloud/appdata:/config
+      - ./servicos/nextcloud/data:/data
     ports:
       - "8081:443" 
     restart: unless-stopped

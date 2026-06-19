@@ -1,88 +1,112 @@
 \chapter{Levantamento das Necessidades Funcionais}
 \label{chap:necessidades}
 
-Com base no guião do projeto proposto, o objetivo central consiste na criação de um \textit{data center} de serviços de rede que possa ser gerido de forma reprodutível, recorrendo exclusivamente a ferramentas \textit{open source}. As necessidades do projeto dividem-se em duas categorias principais: os serviços a disponibilizar (requisitos funcionais) e os requisitos técnicos e de arquitetura (requisitos não-funcionais).
+Com base no guião do projeto proposto pela coordenação de Engenharia Informática da ESTiG, o objetivo central consiste na criação de um \textit{data center} de serviços de rede gerido de forma estritamente reprodutível, recorrendo exclusivamente a ferramentas \textit{open source}. As necessidades do projeto dividem-se em duas categorias principais: os serviços a disponibilizar (requisitos funcionais) e os requisitos técnicos e de segurança da arquitetura (requisitos não-funcionais).
 
 \section{Serviços de Rede a Disponibilizar}
 
-A infraestrutura deve contemplar um conjunto de serviços típicos de uma rede de pequena/média dimensão. De forma detalhada, os requisitos funcionais de cada serviço integrado são os seguintes:
+A infraestrutura contempla um ecossistema de serviços essenciais para uma rede empresarial de pequena ou média dimensão. De forma detalhada, os requisitos funcionais integrados assentam na seguinte especificação:
 
 \begin{itemize}
-    \item \textbf{Servidor DNS:} Resolução de nomes para os hosts e serviços da rede interna; funcionamento em modo recursivo e autoritativo; interface de administração acessível por HTTP.
-    \item \textbf{\textit{Reverse Proxy} HTTPS:} Ponto de entrada único na rede para encaminhamento dinâmico de tráfego HTTP/HTTPS com base no caminho do pedido e terminação TLS unificada.
-    \item \textbf{Servidor Web Estático:} Disponibilização de uma página institucional de estado da infraestrutura através do Nginx com injeção de volumes em modo \textit{read-only}.
-    \item \textbf{Servidor de Ficheiros (Nuvem Privada):} Mecanismo de armazenamento centralizado na rede que garanta a persistência de ficheiros e dados dos utilizadores de forma isolada, resiliente a falhas e controlada por permissões de volume.
-    \item \textbf{Servidor de E-mail:} Solução de comunicações eletrónicas interna capaz de gerir caixas de correio locais através dos protocolos padrão SMTP e IMAP, incorporando políticas básicas de segurança contra acessos maliciosos.
-    \item \textbf{VPN (WireGuard):} Acesso remoto cifrado e seguro à rede interna de \textit{containers} a partir de dispositivos externos (computador portátil e telemóvel), com suporte a Dynamic DNS para contornar a volatilidade do IP público do router.
-    \item \textbf{Monitorização e Logs Centralizados:} Recolha contínua de métricas de \textit{hardware} do host, monitorização do ciclo de vida dos contentores e centralização de logs agregados num único painel analítico para resposta proativa a incidentes.
+    \item \textbf{Servidor DNS Recursivo e Autoritativo:} Resolução de nomes para os hosts e serviços da rede interna; filtragem ativa de domínios publicitários e maliciosos; console gráfica de auditoria acessível por HTTP.
+    \item \textbf{\textit{Reverse Proxy} HTTPS:} Ponto unificado de entrada na rede para encaminhamento dinâmico de tráfego HTTP/HTTPS com base no subcaminho do pedido e terminação TLS.
+    \item \textbf{Servidor Web Estático:} Disponibilização de um painel institucional de estado da infraestrutura através do Nginx com injeção de volumes em modo \textit{read-only} para prevenção de desfiguração (\textit{defacement}).
+    \item \textbf{Servidor de Ficheiros Corporativo (Nextcloud):} Mecanismo de armazenamento centralizado em nuvem privada que garante a persistência de dados dos utilizadores de forma isolada, resiliente a falhas e controlada por volumes permanentes.
+    \item \textbf{Servidor de E-mail Independente (Docker-Mailserver):} Solução completa de comunicações eletrónicas capaz de gerir caixas de correio locais através dos protocolos padrão SMTP e IMAP, incorporando políticas de segurança nativas (Fail2ban e SpamAssassin).
+    \item \textbf{Acesso Remoto Seguro (WireGuard VPN):} Estabelecimento de um túnel cifrado à rede interna a partir de redes exteriores WAN, utilizando obrigatoriamente um mecanismo de \textit{Dynamic DNS} para contornar a volatilidade do IP público do router doméstico.
+    \item \textbf{Observabilidade e Logs Centralizados:} Recolha contínua de métricas de telemetria do host, monitorização do ciclo de vida dos contentores e centralização de logs estruturados (Prometheus, Loki, Promtail e Grafana).
 \end{itemize}
 
-A Tabela \ref{tab:servicos} apresenta detalhadamente os serviços implementados, as ferramentas selecionadas e as respetivas justificações técnicas.
+A Tabela \ref{tab:servicos_completa} apresenta detalhadamente os serviços operacionais implementados e as ferramentas selecionadas.
 
 \begin{table}[h!]
 \centering
-\caption{Serviços a Implementar e Ferramentas Selecionadas}
-\label{tab:servicos}
+\caption{Serviços Implementados na Stack e Ferramentas Selecionadas}
+\label{tab:servicos_completa}
 \begin{tabulary}{\textwidth}{|L|L|L|}
 \hline
-\textbf{Serviço} & \textbf{Ferramenta} & \textbf{Justificação} \\
+\textbf{Serviço} & \textbf{Ferramenta} & \textbf{Justificação Técnica} \\
 \hline
-Servidor DNS & Pi-hole & Servidor recursivo/autoritativo com interface web e bloqueio de domínios maliciosos a nível de rede \cite{pihole_docs}. \\
+Servidor DNS & Pi-hole & Servidor recursivo/autoritativo com interface web e bloqueio de domínios a nível de rede \cite{pihole_docs}. \\
 \hline
-\textit{Reverse Proxy} HTTPS & Nginx & Alto desempenho, baixo consumo de RAM, suporte nativo a subcaminhos e cifra TLS unificada \cite{nginx_docs}. \\
+\textit{Reverse Proxy} & Nginx & Alto desempenho, baixo consumo de RAM, arquitetura assíncrona orientada a eventos \cite{nginx_docs}. \\
 \hline
-Servidor Web estático & Nginx & Reutilização da imagem do proxy para servir conteúdo estático via volumes com mínimo overhead. \\
+Servidor Web Estático & Nginx & Distribuição de painel HTML institucional via volumes persistentes com mínimo overhead computacional. \\
 \hline
-Servidor de Ficheiros & Nextcloud & Solução open source líder para nuvem privada com gestão de persistência de dados isolada e segura. \\
+Servidor de Ficheiros & Nextcloud & Plataforma líder para nuvem privada corporativa com isolamento persistente de dados. \\
 \hline
-Servidor de E-mail & Docker-Mailserver & Stack completa, compacta e segura (SMTP/IMAP) com Fail2ban nativo para proteção da infraestrutura. \\
+Servidor de E-mail & Docker-Mailserver & Solução compacta e blindada (Postfix/Dovecot) com Fail2ban ativo para proteção da infraestrutura. \\
 \hline
-VPN Remota & WireGuard & Protocolo moderno de alto rendimento no kernel Linux, menor superfície de ataque e chaves assimétricas. \\
+VPN Remota & WireGuard & Protocolo moderno de alto rendimento no kernel Linux, criptografia assimétrica e chaves curtas. \\
 \hline
-Recolha de Métricas & Prometheus + Node Exporter & Arquitetura open source baseada em modelo pull com armazenamento otimizado em séries temporais \cite{prometheus_docs}. \\
+Recolha de Métricas & Prometheus & Base de dados temporal baseada em modelo pull com armazenamento otimizado em séries temporais \cite{prometheus_docs}. \\
 \hline
-Centralização de Logs & Grafana Loki + Promtail & Agregação leve de logs Docker baseada em metadados labels, evitando a sobrecarga de memória RAM do ELK Stack. \\
+Agregação de Logs & Grafana Loki & Agregação leve de logs Docker baseada em metadados labels, evitando a sobrecarga de memória RAM da stack ELK. \\
 \hline
-Visualização Unificada & Grafana & Painéis analíticos interativos com integração nativa para Prometheus e Loki na mesma interface \cite{grafana_docs}. \\
+Visualização Unificada & Grafana & Painéis analíticos interativos com provisionamento automático de fontes de dados na mesma interface \cite{grafana_docs}. \\
 \hline
 \end{tabulary}
 \end{table}
 
 \section{Requisitos Técnicos e de Arquitetura}
 
-Para além do correto funcionamento dos serviços, a plataforma respeita rigorosos critérios de implementação e gestão estabelecidos no guião:
+Para além do correto funcionamento dos serviços, a plataforma respeita rigorosos critérios de engenharia e gestão declarativa:
 \begin{itemize}
-    \item \textbf{Containerização e Configuração Declarativa:} Todos os serviços correm isolados em \textit{containers} via \texttt{docker-compose.yml}, garantindo portabilidade total.
-    \item \textbf{Observabilidade e Monitorização:} Integração de telemetria completa (métricas e logs de sistema) e dashboards para alarmística de CPU, RAM e integridade da infraestrutura.
-    \item \textbf{Segurança (\textit{Hardening}):} Aplicação do princípio do mínimo privilégio em volumes (\texttt{:ro}), isolamento de redes Docker do tipo bridge, cifragem obrigatória de tráfego e proteção criptográfica de segredos.
-    \item \textbf{\textit{Pipeline} de CI/CD:} Automação baseada em GitLab Runner local para efetuar o deploy controlado da infraestrutura a cada modificação submetida ao repositório Git.
+    \item \textbf{Containerização Estruturada:} Todos os serviços correm isolados em \textit{containers} independentes via \texttt{docker-compose.yml}, garantindo portabilidade total.
+    \item \textbf{Segurança Ativa (\textit{Hardening}):} Aplicação do princípio do mínimo privilégio em volumes (\texttt{:ro}), isolamento de redes Docker do tipo bridge, cifragem obrigatória de tráfego e proteção criptográfica de segredos com Ansible Vault.
+    \item \textbf{\textit{Pipeline} de CI/CD Automation:} Automação baseada em GitLab Runner local para efetuar o deploy controlado da infraestrutura a cada modificação submetida ao repositório Git.
 \end{itemize}
 
 \section{Ambiente Base: Virtualização e Sistema Operativo}
 
-Para suportar a plataforma e garantir o isolamento do \textit{host} físico, a infraestrutura base foi implementada em ambiente virtualizado.
+Para suportar a plataforma e garantir o isolamento do \textit{host} físico, a infraestrutura base foi implementada num ambiente virtualizado simulando um datacenter privado doméstico.
 
 \subsection{Esquema Gráfico da Arquitetura Física}
-Como exigência para a validação da topologia, a infraestrutura física assenta num modelo de simulação de datacenter doméstico, onde o tráfego externo atravessa uma fronteira controlada antes de atingir os serviços contentorizados.
+A topologia física do sistema e o respetivo endereçamento IP estão representados de forma gráfica na Figura~\ref{fig:arquitetura_fisica_real}.
 
-*(Nota: Deves gerar um diagrama que ilustre a tua Máquina Windows Host $\rightarrow$ executando o VMware Workstation com a VM Ubuntu Server no IP estático 192.168.1.252 $\rightarrow$ ligada ao Router Doméstico MEO que faz o mapeamento DMZ e resolve o Dynamic DNS daniel-infra.ddns.net para o exterior. Insere o gráfico no comando abaixo).*
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    node distance = 2.5cm and 2cm,
+    % Estilos das caixas
+    internet/.style = {draw, ellipse, align=center, minimum height=1.5cm, minimum width=3.5cm, fill=gray!15, thick},
+    router/.style = {draw, rectangle, rounded corners, align=center, minimum height=1.8cm, minimum width=4.5cm, fill=blue!10, thick},
+    host/.style = {draw, rectangle, align=center, minimum height=5cm, minimum width=6.5cm, fill=green!5, dashed, thick},
+    vm/.style = {draw, rectangle, rounded corners, align=center, minimum height=2.5cm, minimum width=5cm, fill=orange!15, thick}
+]
 
-\begin{figure}[h!]
-    \centering
-    \includegraphics[width=0.9\textwidth]{ansible_sucesso.png}
-    \caption{Esquema gráfico da arquitetura física e endereçamento IP da infraestrutura base.}
-    \label{fig:arquitetura_fisica}
+% 1. Nó da Internet
+\node[internet] (cloud) {\textbf{Internet (Exterior)}\\Acesso Remoto WAN};
+
+% 2. Nó do Router
+\node[router, below=of cloud] (router) {\textbf{Router Doméstico (MEO)}\\Gateway LAN: \texttt{192.168.1.1}\\DDNS: \texttt{daniel-infra.ddns.net}\\IP Público Dinâmico};
+
+% 3. Nó da Máquina Física (Host)
+\node[host, below=of router, yshift=-0.5cm] (pc) {};
+\node[anchor=north, font=\bfseries, yshift=-0.2cm] at (pc.north) {Máquina Física (Host Windows)};
+
+% 4. Nó da Máquina Virtual
+\node[vm, below=of router, yshift=-1.5cm] (vm) {\textbf{VM: Ubuntu Server 24.04}\\(VMware em modo Bridged)\\IP Estático: \textbf{192.168.1.252}\\Motor Docker e Serviços};
+
+% Ligações (Setas)
+\draw[<->, >=Stealth, thick] (cloud) -- node[right, align=left, font=\footnotesize, xshift=0.2cm] {Tráfego VPN\\(Porta UDP 51821)} (router);
+\draw[<->, >=Stealth, thick] (router) -- node[right, align=left, font=\footnotesize, xshift=0.2cm] {Rede Local (LAN)\\Mapeamento DMZ direto} (vm);
+
+\end{tikzpicture}
+\caption{Esquema gráfico da arquitetura física, fronteira de rede e endereçamento IP do sistema.}
+\label{fig:arquitetura_fisica_real}
 \end{figure}
 
+A infraestrutura assenta na seguinte segmentação de hardware e virtualização:
 \begin{itemize}
-    \item \textbf{Virtualização (VMware Workstation):} O hypervisor local VMware Workstation garante estabilidade e controlo granular sobre as placas de rede virtuais \cite{vmware_workstation}. O modo \textit{Bridged} foi selecionado para que a VM interaja diretamente na rede física local (LAN), obtendo um IP na mesma gama e tornando-se acessível para os serviços críticos de DNS e VPN.
-    \item \textbf{Sistema Operativo (\textit{Guest OS}):} Optou-se pelo \textbf{Ubuntu Server 24.04 LTS} \cite{ubuntu_server}. Uma distribuição sem interface gráfica (\textit{headless}), minimizando o desperdício de recursos computacionais e garantindo compatibilidade alargada com Docker e Ansible.
+    \item \textbf{Virtualização (VMware Workstation):} O hypervisor local VMware Workstation garante estabilidade e controlo granular sobre as placas de rede virtuais \cite{vmware_workstation}. O modo \textit{Bridged} foi selecionado para que a VM interaja diretamente na rede física local (LAN), obtendo o endereço \texttt{192.168.1.252} na mesma gama do router.
+    \item \textbf{Sistema Operativo (\textit{Guest OS}):} Optou-se pelo \textbf{Ubuntu Server 24.04 LTS} \cite{ubuntu_server}. Uma distribuição estável sem interface gráfica (\textit{headless}), minimizando o desperdício de recursos computacionais e garantindo compatibilidade nativa com Docker e Ansible.
 \end{itemize}
 
 \subsection{Configuração de Rede do Servidor}
-A rede do Ubuntu Server é gerida declarativamente pelo \textbf{Netplan} \cite{netplan_docs}. Configurou-se um endereço IP estático (\texttt{192.168.1.252}) no ficheiro \texttt{/etc/netplan/00-installer-config.yaml} para assegurar a perenidade dos serviços de rede locais, aplicando as alterações de forma segura com o comando \texttt{netplan apply}.
+A rede do Ubuntu Server é gerida declarativamente pelo \textbf{Netplan} \cite{netplan_docs}. Configurou-se o endereço IP estático (\texttt{192.168.1.252}) no ficheiro \texttt{/etc/netplan/00-installer-config.yaml} para assegurar a perenidade dos serviços de rede locais, aplicando as alterações de forma segura com o comando \texttt{netplan apply}.
 
-\subsection{Acesso Externo: Mapeamento em DMZ e Dynamic DNS}
-Para viabilizar o acesso seguro ao túnel VPN WireGuard a partir de redes externas (ex: dados móveis ou redes públicas), o router residencial foi configurado com uma \textbf{DMZ} (\textit{Demilitarized Zone}) direcionada exclusivamente para o IP estático do servidor (\texttt{192.168.1.252}). Desta forma, pedidos externos não filtrados na porta UDP 51821 atingem diretamente o contentor WireGuard. 
+\subsection{Acesso Externo: Mapeamento em DMZ e Dynamic DNS (DDNS)}
+Para viabilizar o acesso seguro ao túnel VPN WireGuard a partir de redes exteriores WAN, o router residencial foi configurado com uma \textbf{DMZ} (\textit{Demilitarized Zone}) direcionada para o IP estático da VM (\texttt{192.168.1.252}). Desta forma, pedidos externos direcionados à porta UDP 51821 atingem diretamente o contentor WireGuard.
 
-Para contornar o problema dos IPs públicos dinâmicos atribuídos pelos operadores de telecomunicações (MEO), que sofrem alterações frequentes e quebrariam as ligações dos clientes, integrou-se um mecanismo de **Dynamic DNS (DDNS)**. Este atualiza automaticamente um nome de domínio fixo (\texttt{daniel-infra.ddns.net}) com o IP público atual do router, garantindo que os perfis de cliente mantêm a conectividade permanentemente estável sem necessidade de reconfiguração manual.
+Para contornar o problema dos IPs públicos dinâmicos atribuídos pelos operadores de telecomunicações, que sofrem alterações frequentes e quebrariam as ligações dos clientes, integrou-se um mecanismo de \textbf{Dynamic DNS (DDNS)}. Este mecanismo atualiza automaticamente o nome de domínio fixo \texttt{daniel-infra.ddns.net} com o IP público atual do router doméstico. No parâmetro \texttt{SERVERURL} do WireGuard, em vez de se definir um IP estático volátil, configurou-se o nome de DNS dinâmico registado para este efeito, garantindo conectividade estável e permanente para os utilizadores em mobilidade externa.

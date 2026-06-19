@@ -1,50 +1,50 @@
 \chapter{Introdução}
 \label{chap:introducao}
 
-A administração de sistemas e redes atravessa uma transformação profunda, impulsionada pela crescente exigência de disponibilidade contínua, escalabilidade e rastreabilidade das infraestruturas tecnológicas. A necessidade de implementar e gerir serviços de forma rápida, reprodutível e resistente a falhas humanas impulsionou a adoção em larga escala de tecnologias de \textit{containerização} e da filosofia de \textit{Infrastructure as Code} (IaC) \cite{morris2016infrastructure}.
+A administração de sistemas e redes vive hoje uma transformação profunda, impulsionada por exigências cada vez maiores de disponibilidade, escalabilidade e rastreabilidade. Gerir infraestruturas à mão, serviço a serviço, tornou-se um risco operacional que muitas organizações já não podem assumir. A necessidade de implementar plataformas de forma rápida, reprodutível e resistente a falhas humanas tem forçado a transição para tecnologias de \textit{containerização} e para a filosofia de \textit{Infrastructure as Code} (IaC) \cite{morris2016infrastructure}.
 
 \section{Contextualização e Motivação}
 
-Numa infraestrutura tecnológica de pequena ou média dimensão --- contexto comum em instituições de ensino, PMEs ou laboratórios de investigação ---, a gestão manual e ad-hoc de serviços críticos como DNS, \textit{reverse proxies}, VPNs ou servidores de ficheiros revela-se insustentável a longo prazo. Cada intervenção manual representa um risco de inconsistência: um ficheiro de configuração alterado sem versionamento, uma dependência instalada fora do contexto correto, ou um serviço reposto com parâmetros diferentes dos originais são erros frequentes em ambientes não automatizados.
+Em infraestruturas de pequena ou média dimensão --- um cenário frequente em laboratórios de investigação, PMEs ou ambientes de ensino ---, a gestão manual de serviços críticos como DNS, \textit{reverse proxies}, VPNs ou servidores de ficheiros torna-se rapidamente insustentável. Cada intervenção direta no sistema é um ponto de falha: ficheiros de configuração modificados sem rasto, dependências instaladas que não figuram em documentação ou serviços repostos com parâmetros divergentes dos originais são erros comuns em ambientes que carecem de automação.
 
-A motivação deste projeto nasceu precisamente desta realidade. Ao longo do processo de implementação, foi possível constatar em primeira mão como a ausência de automação agrava os tempos de recuperação após falhas: por exemplo, a simples reinicialização do \textit{router} da rede local foi suficiente para derrubar a conectividade da máquina virtual (VM), exigindo uma intervenção manual de diagnóstico e reconfiguração que, num ambiente automatizado e bem documentado, teria sido evitada ou resolvida em segundos. Este tipo de incidente, que será detalhado no Capítulo \ref{chap:implementacao}, ilustra a relevância prática dos objetivos deste projeto.
+A motivação deste projeto surgiu precisamente desta realidade. Durante a implementação, a ausência de uma base de automação agravou os tempos de recuperação após incidentes. Um exemplo claro foi a simples reinicialização do \textit{router} da rede local, que derrubou a conectividade da máquina virtual (VM) e exigiu uma intervenção manual de diagnóstico e reconfiguração. Num ambiente automatizado, esta intervenção seria evitável ou resolvida em instantes. Este incidente, que será analisado detalhadamente no Capítulo \ref{chap:implementacao}, serve como prova da relevância prática dos objetivos deste trabalho.
 
-O paradigma de \textit{containerização}, em particular através de tecnologias como o Docker, oferece uma resposta concreta a estes desafios: as aplicações e os seus serviços são encapsulados em unidades portáteis e isoladas (\textit{containers}), com as suas dependências declaradas de forma explícita, garantindo que o ambiente de execução é consistente independentemente do \textit{host} físico onde corre \cite{docker_docs}. Complementarmente, a automação de configuração com ferramentas como o Ansible e a integração de \textit{pipelines} de CI/CD permitem que qualquer alteração à infraestrutura seja testada, auditada e aplicada de forma controlada \cite{humble2010continuous}.
+O paradigma de \textit{containerização}, através de ferramentas como o Docker, resolve estes problemas ao encapsular aplicações e serviços em unidades portáteis e isoladas. As dependências são declaradas de forma explícita, assegurando que o ambiente de execução é consistente, independentemente da máquina física hospedeira \cite{docker_docs}. Quando combinamos esta portabilidade com a automação via Ansible e \textit{pipelines} de CI/CD, garantimos que qualquer alteração à infraestrutura é auditada, testada e aplicada de forma controlada, evitando o "desvio de configuração" (\textit{configuration drift}) \cite{humble2010continuous}.
 
 \section{Objetivos}
 
-O objetivo central deste projeto é construir, configurar e documentar uma plataforma de serviços de rede baseada em \textit{containers}, com orquestração leve (Docker Compose), focada em boas práticas de segurança, CI/CD e observabilidade.
+O objetivo central deste trabalho é construir, configurar e documentar uma plataforma de serviços de rede totalmente baseada em \textit{containers}, orquestrada com Docker Compose, focada em segurança, observabilidade e CI/CD.
 
-De forma mais específica, os objetivos operacionais do projeto são os seguintes:
+De forma específica, os objetivos operacionais definidos são:
 
 \begin{itemize}
-    \item \textbf{Implementar serviços típicos de rede em \textit{containers}:} servidor DNS (Pi-hole), \textit{Reverse Proxy} HTTPS (Nginx), servidor Web estático (Nginx), VPN (WireGuard) e \textit{stack} de monitorização (Prometheus, Node Exporter, Grafana).
+    \item \textbf{Implementar serviços de rede em \textit{containers}:} Servidor DNS (Pi-hole), \textit{Reverse Proxy} HTTPS (Nginx), servidor Web (Nginx), VPN (WireGuard), Servidor de E-mail (Docker-Mailserver), servidor de ficheiros (Nextcloud) e \textit{stack} de monitorização (Prometheus, Grafana, Loki).
     
-    \item \textbf{Garantir reprodutibilidade total da infraestrutura:} toda a configuração --- desde a instalação do Docker até ao \textit{deploy} dos serviços --- deve poder ser recriada a partir do repositório Git sem qualquer intervenção manual adicional, seguindo o princípio de \textit{Single Source of Truth} \cite{morris2016infrastructure}.
+    \item \textbf{Garantir reprodutibilidade total:} A infraestrutura deve ser recriável a partir do repositório Git sem intervenção manual, seguindo o princípio da \textit{Single Source of Truth} \cite{morris2016infrastructure}.
     
-    \item \textbf{Aplicar boas práticas de segurança:} volumes em modo \textit{read-only}, isolamento de serviços em rede interna, gestão de segredos por variáveis de ambiente, e encriptação de tráfego (TLS/WireGuard).
+    \item \textbf{Aplicar práticas rigorosas de segurança:} Utilização de volumes \textit{read-only}, segmentação de redes internas Docker, encriptação de segredos com \textit{Ansible Vault} e reforço de tráfego via TLS/WireGuard.
     
-    \item \textbf{Automatizar o \textit{deploy} com Ansible e CI/CD:} qualquer \textit{commit} na \textit{branch} principal do repositório GitLab deve despoletar automaticamente o \textit{deploy} da infraestrutura, sem intervenção humana.
+    \item \textbf{Automatizar o \textit{deploy} com CI/CD:} Qualquer \textit{commit} na \textit{branch} principal deve despoletar automaticamente o \textit{deploy} da infraestrutura, assegurando consistência entre o código e o ambiente de produção.
     
-    \item \textbf{Integrar observabilidade centralizada:} recolha contínua de métricas de \textit{hardware} (CPU, RAM, I/O, rede) e visualização em painéis Grafana, permitindo detetar anomalias de forma proativa.
+    \item \textbf{Integrar observabilidade centralizada:} Implementação de recolha de métricas de \textit{hardware} e logs centralizados, com visualização em painéis Grafana para monitorização proativa.
     
-    \item \textbf{Documentar o processo de \textit{troubleshooting}:} registar e analisar os erros reais encontrados durante a implementação, demonstrando o raciocínio técnico aplicado na sua resolução.
+    \item \textbf{Documentar procedimentos de \textit{troubleshooting}:} Registo detalhado dos desafios técnicos e erros encontrados durante o projeto, demonstrando o raciocínio aplicado na sua resolução.
 \end{itemize}
 
 \section{Metodologia}
 
-A abordagem metodológica seguida neste projeto assenta em três pilares complementares. Em primeiro lugar, adotou-se uma estratégia incremental: os serviços foram implementados por camadas, começando pela base (sistema operativo e Docker), passando pelos serviços de rede (DNS, Web, VPN) e terminando na observabilidade e automação CI/CD. Esta ordem garante que cada camada superior pôde ser validada antes de avançar.
+A metodologia adotada divide-se em três eixos principais. Primeiro, uma estratégia incremental: os serviços foram implementados por camadas, começando pela infraestrutura base (SO e Docker), progredindo para os serviços de rede (DNS, Web, VPN, E-mail) e culminando na observabilidade e automação. Esta estratificação permitiu validar cada camada antes de avançar para a próxima.
 
-Em segundo lugar, toda a configuração foi versionada em Git desde o início, o que permitiu rastrear cada alteração e reverter configurações problemáticas de forma controlada. Por fim, os erros e os processos de \textit{troubleshooting} foram documentados no momento em que ocorreram, preservando o contexto técnico necessário para a sua análise posterior.
+Segundo, o versionamento contínuo: toda a configuração foi mantida em Git, permitindo o rastreio de alterações e a reversão imediata de configurações problemáticas. Por fim, uma documentação ativa: cada obstáculo técnico foi registado no momento da ocorrência, preservando o contexto necessário para que este relatório sirva não apenas como descrição, mas como \textit{runbook} de referência para futuras intervenções.
 
 \section{Estrutura do Documento}
 
-O presente relatório está organizado da seguinte forma:
+O relatório organiza-se da seguinte forma:
 
 \begin{itemize}
-    \item \textbf{Capítulo \ref{chap:estado_arte} --- Estado da Arte:} revisão das tecnologias envolvidas, com base em documentação oficial e literatura técnica, contextualizando as opções tomadas.
-    \item \textbf{Capítulo \ref{chap:necessidades} --- Levantamento das Necessidades:} análise dos requisitos funcionais e não-funcionais da plataforma, e justificação das escolhas de ambiente.
-    \item \textbf{Capítulo \ref{chap:implementacao} --- Arquitetura e Implementação:} descrição detalhada do processo de implementação, incluindo configurações, listagens de código e documentação dos problemas encontrados.
-    \item \textbf{Capítulo \ref{cap:test} --- Testes e Avaliação:} validação dos serviços implementados e discussão dos resultados.
-    \item \textbf{Capítulo \ref{cap:conclusions} --- Conclusões:} síntese do trabalho realizado, análise crítica e propostas de trabalho futuro.
+    \item \textbf{Capítulo \ref{chap:estado_arte} --- Estado da Arte:} análise das tecnologias escolhidas face às alternativas de mercado.
+    \item \textbf{Capítulo \ref{chap:necessidades} --- Levantamento das Necessidades:} requisitos funcionais e análise da arquitetura base.
+    \item \textbf{Capítulo \ref{chap:implementacao} --- Arquitetura e Implementação:} detalhe técnico da montagem da infraestrutura e resolução de problemas.
+    \item \textbf{Capítulo \ref{cap:test} --- Testes e Avaliação:} validação prática dos serviços e discussão dos resultados.
+    \item \textbf{Capítulo \ref{cap:conclusions} --- Conclusões:} síntese do trabalho e propostas de evolução futura.
 \end{itemize}

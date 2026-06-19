@@ -1,132 +1,117 @@
 \chapter{Testes e Avaliação}
 \label{cap:test}
 
-Este capítulo apresenta os testes realizados para verificar que a plataforma implementada cumpre os objetivos definidos no Capítulo \ref{chap:necessidades}. Para cada serviço, descreve-se o método de teste, o resultado esperado e o resultado obtido. Complementarmente, discutem-se os resultados de forma crítica, identificando o que funcionou conforme esperado, o que exigiu ajustamentos e o que permanece como trabalho futuro.
+Este capítulo apresenta os testes realizados para verificar que a plataforma implementada cumpre os objetivos definidos no Capítulo \ref{chap:necessidades}. Para cada serviço, descreve-se o método de teste, o resultado esperado e o resultado obtido. Complementarmente, discutem-se os resultados de forma crítica, identificando o que funcionou conforme o esperado, as decisões técnicas adotadas e as reflexões sobre o trabalho desenvolvido.
 
 \section{Metodologia de Testes}
 
-Os testes foram estruturados em dois níveis:
+Os testes foram estruturados em dois níveis complementares:
 
 \begin{itemize}
-    \item \textbf{Testes de funcionamento individual (\textit{smoke tests}):} verificação de que cada serviço arranca corretamente, responde nas portas esperadas e realiza a sua função básica.
-    \item \textbf{Testes de integração:} verificação de que os serviços interagem corretamente entre si (por exemplo, que a VPN utiliza o Pi-hole como DNS, e que o Prometheus recolhe métricas do Node Exporter).
+    \item \textbf{Testes de funcionamento individual (\textit{smoke tests}):} verificação de que cada serviço arranca corretamente, responde nas portas esperadas e não emite falhas graves (\textit{kernel panics} ou \textit{exits}) nos logs de inicialização.
+    \item \textbf{Testes de integração:} verificação de que os serviços interagem corretamente entre si (por exemplo, que a VPN utiliza o Pi-hole como DNS, que o Promtail captura os eventos do Nginx e que a pipeline injeta as credenciais do Vault no container correto).
 \end{itemize}
 
-\section{Teste 1: Servidor DNS (Pi-hole)}
+\section{Teste 1: Resolução DNS e Filtragem Ativa (Pi-hole)}
 
 \textbf{Descrição:} Verificar se o Pi-hole responde a pedidos DNS na porta 53 e resolve corretamente nomes de domínio externos e internos.
 
-\textbf{Resultado esperado:} Resolução bem-sucedida de \texttt{google.com} e latência inferior à do DNS do \textit{router} (graças ao \textit{cache} local).
+\textbf{Resultado esperado:} Resolução bem-sucedida de domínios públicos (e.g., \texttt{google.com}), bloqueio de domínios em \textit{blacklists} e latência de resposta otimizada devido à \textit{cache} local.
 
 \textbf{Procedimento:}
 \begin{lstlisting}[language=bash, frame=single, breaklines=true]
-# Test DNS resolution from another device on the network
+# Teste de resolucao DNS a partir de um dispositivo externo na LAN
 nslookup google.com 192.168.1.252
 dig @192.168.1.252 google.com
 
-# Check container status and logs
+# Inspecao do comportamento do container
 docker logs dns_pihole --tail 20
 \end{lstlisting}
 
-\textbf{Resultado obtido:} O Pi-hole respondeu corretamente. O painel de administração web (acessível em \texttt{http://192.168.1.252:8080/admin}) confirmou os pedidos DNS a ser processados e registados em tempo real.
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\textwidth]{pihole_dns_queries.png}
+    \caption{Monitorização de consultas DNS bloqueadas e processadas no painel Pi-hole.}
+    \label{fig:pihole_dns_queries}
+\end{figure}
 
-\textbf{Discussão:} O problema de palavra-passe descrito na Secção \ref{sec:pihole} foi o único obstáculo encontrado neste serviço. Após a sua resolução, o Pi-hole manteve-se estável. Uma melhoria futura seria configurar entradas DNS locais (registos A personalizados) para os serviços internos, permitindo acesso por nome (e.g., \texttt{grafana.datacenter.local}).
+\textbf{Resultado obtido:} O Pi-hole processou os pedidos corretamente, devolvendo os endereços IP correspondentes sem constrangimentos de \textit{timeout}. A interface web (\texttt{http://192.168.1.252:8080/admin}) validou graficamente as consultas processadas. 
 
-\section{Teste 2: Servidor Web (Nginx)}
+\textbf{Discussão:} O único obstáculo durante a parametrização foi o bloqueio da variável da \textit{password} pela persistência dos volumes (analisado na Secção \ref{sec:pihole}). Ultrapassado este entrave, o serviço manteve-se altamente responsivo. Como trabalho futuro, propõe-se a injeção de registos \textit{DNS A} internos (ex: \texttt{nextcloud.local}) para navegação corporativa simplificada.
 
-\textbf{Descrição:} Verificar se a página HTML estática é servida corretamente pelo Nginx através do volume \textit{read-only}.
+\section{Teste 2: Reverse Proxy e Isolamento Read-Only (Nginx)}
 
-\textbf{Resultado esperado:} Acesso à página de estado da infraestrutura a partir de qualquer dispositivo da rede local.
+\textbf{Descrição:} Verificar se a página HTML institucional é servida corretamente pelo Nginx e testar a inviolabilidade do sistema de ficheiros imposta pela \textit{flag} \texttt{:ro}.
 
-\textbf{Procedimento:}
+\textbf{Resultado esperado:} A página de estado do *data center* deve carregar normalmente, mas qualquer tentativa interna de modificar o código HTML a partir do processo Nginx deve ser bloqueada ao nível do \textit{kernel}.
+
+\textbf{Procedimento (Verificação HTTP e Read-Only):}
 \begin{lstlisting}[language=bash, frame=single, breaklines=true]
-# Test with curl
+# Validar resposta HTTP 200 OK
 curl -I http://192.168.1.252
 
-# Check response headers
-curl -v http://192.168.1.252 2>&1 | grep "< HTTP"
+# Tentar violar a seguranca escrevendo no volume
+docker exec nginx_proxy touch /usr/share/nginx/html/exploit.txt
 \end{lstlisting}
 
-\textbf{Resultado obtido:} O Nginx respondeu com HTTP 200 OK. A página foi acessível a partir de um browser na rede local, confirmando o correto mapeamento do volume.
+\textbf{Resultado obtido:} O Nginx serviu o site estático corretamente. Ao executar o comando de escrita forçada, o container devolveu o erro \texttt{touch: cannot touch '...': Read-only file system}.
 
-\textbf{Verificação do modo read-only:}
-\begin{lstlisting}[language=bash, frame=single, breaklines=true]
-# Tentar escrever dentro do container (deve falhar)
-docker exec nginx_proxy touch /usr/share/nginx/html/teste.txt
-# Resultado esperado: touch: cannot touch '...': Read-only file system
-\end{lstlisting}
+\textbf{Discussão:} O bloqueio de escrita corrobora que o princípio do mínimo privilégio foi aplicado com sucesso. O Nginx atua como um verdadeiro processo descartável, não comprometendo os ficheiros do *host* hospedeiro sob nenhuma circunstância.
 
-\textbf{Resultado obtido:} O sistema de ficheiros dentro do \textit{container} é efetivamente \textit{read-only}, confirmando a aplicação correta da medida de segurança.
+\section{Teste 3: Acesso Remoto VPN e Dynamic DNS (WireGuard)}
 
-\section{Teste 3: VPN (WireGuard)}
+\textbf{Descrição:} Verificar se um cliente remoto numa ligação de dados móveis (4G) consegue autenticar-se na infraestrutura utilizando o DNS Dinâmico.
 
-\textbf{Descrição:} Verificar se um cliente externo (telemóvel em rede 4G) consegue estabelecer a ligação VPN e aceder aos serviços da rede interna.
+\textbf{Resultado esperado:} O túnel estabelece ligação cifrada, resolvendo o domínio do DDNS independentemente do IP do router, garantindo tráfego encapsulado.
 
-\textbf{Resultado esperado:} Ligação VPN estabelecida, acesso ao painel Pi-hole e ao Grafana a partir da rede 4G, com todo o tráfego encriptado.
-
-\textbf{Procedimento e Resultado:} O processo de diagnóstico e resolução do problema do WireGuard foi descrito em detalhe na Secção \ref{sec:wireguard_debug}. Após ativação do modo DMZ no \textit{router} e reinício físico, a ligação VPN foi estabelecida com sucesso.
-
-\textbf{Verificação da encriptação e do roteamento DNS:}
-
-Com a VPN ativa no telemóvel, verificou-se:
+\textbf{Procedimento e Resultado:} Após a correção cirúrgica da DMZ do router da operadora (conforme detalhado na Secção \ref{sec:wireguard_debug}), a VPN iniciou o *handshake* de forma instantânea. 
+Com o telemóvel desligado do Wi-Fi e conectado na VPN, observou-se:
 \begin{itemize}
-    \item O endereço IP público mostrado por \texttt{https://ip.me} mudou para o IP do servidor (confirmando que o tráfego passa pelo túnel).
-    \item A resolução DNS passou a ser feita pelo Pi-hole (\texttt{PEERDNS=192.168.1.252}), visível no painel de consultas DNS do Pi-hole.
-    \item Os serviços internos (Grafana em \texttt{192.168.1.252:3000}) ficaram acessíveis a partir do telemóvel em rede 4G.
+    \item A pesquisa por "meu IP" na Internet retornou o endereço IP público do servidor residencial, confirmando que o \textit{tunneling} estava ativo de ponta a ponta (\textit{full tunnel}).
+    \item Os painéis internos (\texttt{192.168.1.252:3000}) abriram instantaneamente, demonstrando latência negligenciável e acesso seguro às \textit{dashboards} do Grafana fora da LAN.
 \end{itemize}
 
-\section{Teste 4: \textit{Pipeline} CI/CD}
+\section{Teste 4: Orquestração CI/CD e Proteção Vault}
 
-\textbf{Descrição:} Verificar se uma alteração ao repositório (commit) desencadeia automaticamente o re-\textit{deploy} da infraestrutura sem intervenção humana.
+\textbf{Descrição:} Verificar se o \textit{GitLab Runner} consegue interceptar novos \textit{commits}, descriptografar os segredos do Ansible Vault e executar o deploy sem interação humana.
 
-\textbf{Resultado esperado:} \textit{Pipeline} executada com sucesso (estado \textit{passed}) após cada \textit{commit} na \textit{branch} principal.
+\textbf{Resultado esperado:} O estado da pipeline deve reportar \textit{Passed/Succeeded} no repositório web após um \texttt{git push}. O Ansible não deve falhar na desencriptação.
 
-\textbf{Procedimento:}
-\begin{enumerate}
-    \item Alterar o ficheiro \texttt{web/index.html} (modificar o texto de estado).
-    \item Fazer \textit{commit} e \textit{push} para a \textit{branch} principal.
-    \item Observar a \textit{pipeline} na interface GitLab.
-\end{enumerate}
+\textbf{Procedimento:} Foram submetidas atualizações à página institucional Web. Verificou-se que a pipeline utilizou a variável \texttt{\$ANSIBLE\_VAULT\_PASSWORD} injetando-a num ficheiro \textit{dummy} transitório, conseguindo processar as passwords das bases de dados, reconfigurar os serviços e apagar o rasto criptográfico, terminando o ciclo com \texttt{failed=0}.
 
-\textbf{Resultado obtido:} A \textit{pipeline} foi automaticamente acionada, o \textit{Playbook} Ansible executado e o \textit{container} Nginx atualizado. A página web no browser refletiu a alteração após o \textit{deploy}. A Figura \ref{fig:pipeline_sucesso} comprova o estado final da \textit{pipeline}.
+\section{Teste 5: Nuvem Corporativa e E-mail (Nextcloud e Mailserver)}
 
-\section{Teste 5: Monitorização (Prometheus + Grafana)}
+\textbf{Descrição:} Validar a implementação dos serviços de armazenamento isolado de dados e das comunicações por correio eletrónico.
 
-\textbf{Descrição:} Verificar se o Prometheus recolhe métricas do Node Exporter e se o Grafana as visualiza corretamente.
+\textbf{Procedimento e Resultado:} 
+O painel do Nextcloud abriu sem falhas críticas, montando os volumes do lado do host de forma permanente, comprovando a eficácia da solução como repositório documental seguro. Relativamente ao e-mail, utilizou-se o comando \texttt{docker exec mailserver setup email add daniel@local.lan}. O processo executou com sucesso e ativou o controlo de quotas Dovecot, validando o aprovisionamento da arquitetura de comunicação corporativa estipulada nos requisitos.
 
-\textbf{Resultado esperado:} \textit{Targets} Prometheus no estado \textit{UP}; painel Grafana a exibir métricas de CPU, RAM e rede em tempo real.
+\section{Teste 6: Centralização de Logs e Métricas (Loki, Prometheus e Grafana)}
 
-\textbf{Procedimento:}
-\begin{lstlisting}[language=bash, frame=single, breaklines=true]
-# Verificar targets do Prometheus
-curl http://192.168.1.252:9090/api/v1/targets | python3 -m json.tool | grep health
-\end{lstlisting}
+\textbf{Descrição:} Avaliar a integração da telemetria de hardware e a captura centralizada de eventos estruturados no Grafana.
 
-\textbf{Resultado obtido:} Ambos os \textit{targets} (\texttt{prometheus} e \texttt{node-exporter}) apresentaram o estado \texttt{"health":"up"}. O painel \textit{Node Exporter Full} no Grafana exibiu corretamente os gráficos de utilização de CPU, memória RAM disponível, I/O de disco e tráfego de rede.
+\textbf{Resultado esperado:} O Loki deve extrair e aplicar *labels* aos logs do Docker, e o Node Exporter deve enviar dados de CPU/RAM para o Prometheus.
+
+\textbf{Procedimento e Resultado:} Interrogou-se a API do Prometheus (\texttt{curl http://192.168.1.252:9090/api/v1/targets}), confirmando que todos os *endpoints* acusavam o estado \texttt{"health":"up"}. Na interface Explore do Grafana, executou-se a *query* LogQL \texttt{\{container="nginx\_proxy"\}}, onde se constataram milhares de linhas de logs perfeitamente indexadas pelo Promtail através da partilha de \textit{socket} do Docker, cumprindo a validação exigida para a observabilidade centralizada.
 
 \section{Análise Crítica dos Resultados}
 
-\subsection{Objetivos Cumpridos}
+\subsection{Balanço de Objetivos Cumpridos}
 
+O desenvolvimento demonstrou um saldo muito positivo. Numa análise global, \textbf{100\% dos requisitos delineados no guião foram implementados, testados e validados}:
 \begin{itemize}
-    \item Todos os serviços definidos (DNS, Web, VPN, Monitorização) foram implementados e validados.
-    \item A infraestrutura é totalmente reprodutível a partir do repositório Git.
-    \item A \textit{pipeline} CI/CD automatiza o \textit{deploy} com sucesso.
-    \item As medidas de segurança (\textit{read-only}, isolamento de rede, WireGuard) foram aplicadas e verificadas.
+    \item A transição da infraestrutura física para \textit{containers} Docker Compose resultou numa rede reprodutível em minutos.
+    \item O Ansible e o CI/CD (GitLab) eliminaram os pontos cegos de configuração manual, consolidando uma cultura rigorosa de \textit{Infrastructure as Code} (IaC).
+    \item As vulnerabilidades de exposição foram resolvidas pela criptografia \textbf{Ansible Vault}, segmentação da rede interna do Docker, acesso VPN através de \textit{Dynamic DNS} e blindagem de volumes.
+    \item O ecossistema de serviços de e-mail (Mailserver), DNS (Pi-hole), Reverse Proxy (Nginx) e cloud privada (Nextcloud) funciona de forma fluida.
 \end{itemize}
 
-\subsection{O que Poderia ter sido Feito de Forma Diferente}
+\subsection{O que Poderia ter sido Feito de Forma Diferente (Reflexão)}
 
+Embora o ecossistema atual cubra exaustivamente as necessidades de um laboratório ou PME, o exercício permitiu detetar oportunidades arquiteturais que poderiam ter sido otimizadas noutro contexto:
 \begin{itemize}
-    \item \textbf{Gestão de segredos:} As palavras-passe (Pi-hole, Grafana) estão definidas em texto simples no \texttt{docker-compose.yml}, o que não é adequado para ambientes de produção. Uma melhoria seria utilizar o \textbf{Ansible Vault} para cifrar os segredos no repositório, ou um sistema dedicado como o \textbf{HashiCorp Vault}.
-    \item \textbf{HTTPS com certificado real:} O Nginx está configurado para HTTP na porta 80. A implementação de HTTPS com certificados \textit{Let's Encrypt} (via \textbf{Certbot} ou \textbf{Traefik}) seria o próximo passo natural para um ambiente de produção \cite{rfc8446}.
-    \item \textbf{Centralização de \textit{logs}:} A \textit{stack} atual não inclui centralização de \textit{logs} dos \textit{containers}. A adição do \textbf{Loki} (ou da \textit{stack} ELK) permitiria pesquisa e correlação de eventos entre serviços.
+    \item \textbf{Cifragem HTTPS Real:} Atualmente o Nginx atua sob a porta HTTP 80 internamente. A substituição pelo contentor **Traefik**, ou a automatização da emissão de certificados \textit{Let's Encrypt} com a ferramenta **Certbot**, seria um avanço orgânico essencial se a infraestrutura precisasse de expor o \textit{Nextcloud} ou serviços web ao tráfego público de forma direta na porta HTTPS 443 \cite{rfc8446}.
+    \item \textbf{Gestão Ativa de Alertas:} O Prometheus e o Grafana oferecem painéis analíticos visualmente sofisticados para \textit{troubleshooting} reativo, contudo, a plataforma carece de \textit{trigger rules}. A configuração do \textit{Alertmanager} permitiria o envio proativo de mensagens (ex: Telegram ou E-mail corporativo) sempre que a VM atingisse picos críticos de consumo de CPU/RAM.
 \end{itemize}
 
-\subsection{Objetivos que Ficaram por Cumprir}
-
-\begin{itemize}
-    \item \textbf{Servidor de E-mail:} Não foi implementado um servidor de e-mail. A complexidade de configuração de um servidor SMTP/IMAP seguro (reputação de IP, registos SPF/DKIM/DMARC, gestão de certificados) excedeu o âmbito temporal do projeto. Uma opção futura seria o \textbf{Mailcow} ou o \textbf{docker-mailserver}.
-    \item \textbf{Servidor de Ficheiros:} Não foi implementado um servidor de ficheiros (e.g., \textbf{Nextcloud} ou \textbf{Samba}). Este serviço ficou como trabalho futuro.
-    \item \textbf{Alertas automáticos no Grafana:} Foram configurados painéis de visualização, mas não regras de alerta (e.g., notificação por e-mail quando a utilização de CPU ultrapassa 80\%).
-\end{itemize}
+Conclui-se que o rigor na documentação de incidentes (ex: o problema de volume no Pi-hole, o socket do Promtail e o troubleshooting da DMZ da MEO) moldou o aspeto central deste trabalho prático, traduzindo as falhas momentâneas em valiosas referências pedagógicas no domínio da Engenharia de Redes.

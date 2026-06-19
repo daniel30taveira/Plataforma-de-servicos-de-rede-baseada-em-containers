@@ -15,11 +15,54 @@ Antes de detalhar a implementação, importa descrever a arquitetura global da p
  
 Todo o tráfego externo entra pelo Nginx nas portas 80/443, ou diretamente pelo WireGuard na porta UDP 51821. Os serviços internos comunicam exclusivamente através da rede Docker \texttt{bridge} isolada, sem exposição desnecessária de portas ao exterior. Para uma melhor compreensão desta segmentação e interligação funcional, a Figura~\ref{fig:esquema_3_camadas} apresenta o esquema conceptual detalhado das três camadas propostas para o sistema.
 
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.9\textwidth]{esquema_conceptual_3camadas.png}
-    \caption{Esquema conceptual da arquitetura da plataforma baseado em 3 camadas.}
-    \label{fig:esquema_3_camadas}
+\begin{figure}[H]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+    box/.style={draw=black!70, rounded corners, thick, align=center, fill=white, minimum height=1.4cm},
+    layer/.style={draw=black!50, thick, dashed, rounded corners, inner sep=15pt, fill opacity=0.1, text opacity=1},
+    >=Stealth
+]
+
+% ==========================================
+% Camada 3: Serviços Contentorizados
+% ==========================================
+\node[box, minimum width=2.8cm] (nginx) {\textbf{Nginx}\\Reverse Proxy};
+\node[box, minimum width=2.8cm, right=0.5cm of nginx] (net) {\textbf{Pi-hole \&}\\\textbf{WireGuard}};
+\node[box, minimum width=2.8cm, right=0.5cm of net] (corp) {\textbf{Nextcloud \&}\\\textbf{Mailserver}};
+\node[box, minimum width=3.5cm, right=0.5cm of corp] (obs) {\textbf{Grafana, Loki}\\Prometheus / Promtail};
+
+% Envolver Camada 3
+\node[layer, fill=blue!20, fit=(nginx) (net) (corp) (obs), label={[font=\large\bfseries, text=blue!80!black]above left:Camada 3: Serviços Contentorizados (Rede Docker)}] (camada3) {};
+
+% ==========================================
+% Camada 2: Automação e Orquestração
+% ==========================================
+\node[box, minimum width=6cm, below=2cm of net, xshift=1cm] (ansible) {\textbf{Ansible (IaC)}\\Gestão de Configuração e Vault};
+\node[box, minimum width=5cm, right=0.8cm of ansible] (gitlab) {\textbf{GitLab Runner}\\Pipeline CI/CD Local};
+
+% Envolver Camada 2
+\node[layer, fill=green!20, fit=(ansible) (gitlab), label={[font=\large\bfseries, text=green!60!black]above left:Camada 2: Automação e Orquestração}] (camada2) {};
+
+% ==========================================
+% Camada 1: Infraestrutura Base
+% ==========================================
+\node[box, minimum width=6.5cm, below=2cm of ansible, xshift=2.5cm] (ubuntu) {\textbf{Ubuntu Server 24.04 LTS}\\Motor Docker (IP: 192.168.1.252)};
+\node[box, minimum width=5cm, left=0.8cm of ubuntu] (vmware) {\textbf{VMware Workstation}\\Host Físico Windows};
+
+% Envolver Camada 1
+\node[layer, fill=orange!20, fit=(ubuntu) (vmware), label={[font=\large\bfseries, text=orange!80!black]above left:Camada 1: Infraestrutura Base e Virtualização}] (camada1) {};
+
+% ==========================================
+% Setas de Interação entre camadas
+% ==========================================
+\draw[<->, thick, color=black!60] (camada2.north) -- node[right, align=left, font=\footnotesize, color=black] {Deploy de Serviços\\Gestão de Segredos e Volumes} (camada3.south);
+\draw[<->, thick, color=black!60] (camada1.north) -- node[right, align=left, font=\footnotesize, color=black] {Provisionamento de SO\\Instalação do Docker Engine} (camada2.south);
+
+\end{tikzpicture}
+} % Fim do resizebox
+\caption{Esquema conceptual da arquitetura da plataforma estruturado em 3 camadas abstratas.}
+\label{fig:esquema_3_camadas}
 \end{figure}
  
 \section{Configuração do Ambiente Base (Ubuntu Server)}
@@ -28,7 +71,7 @@ Todo o tráfego externo entra pelo Nginx nas portas 80/443, ou diretamente pelo 
  
 O Ubuntu Server 24.04 LTS foi instalado numa VM VMware com as seguintes especificações: 2 vCPUs, 4 GB de RAM e 50 GB de disco. A interface de rede foi configurada em modo \textit{Bridged} no VMware, o que permite à VM participar diretamente na rede local e obter um endereço IP nessa gama. Após a instalação, o primeiro passo foi verificar a conectividade de rede e o endereço IP atribuído, conforme ilustrado na Figura~\ref{fig:ubuntu_ip}. O acesso remoto por SSH é fundamental, pois permite operar o servidor de forma \textit{headless} a partir do terminal WSL na máquina Windows.
  
-\begin{figure}[htbp]
+\begin{figure}[H]
     \centering
     \includegraphics[width=0.85\textwidth]{ubuntu_ip.png}
     \caption{Verificação do endereço IP e acesso SSH inicial ao Ubuntu Server 24.04 LTS.}
@@ -38,7 +81,7 @@ O Ubuntu Server 24.04 LTS foi instalado numa VM VMware com as seguintes especifi
 \subsection{Configuração de IP Estático com Netplan}
 \label{sec:netplan}
  
-Para garantire que o servidor mantém sempre o mesmo endereço IP na rede local --- condição essencial para o correto funcionamento do DNS, da VPN e das entradas do inventário Ansible ---, procedeu-se à configuração de um IP estático através do Netplan \cite{netplan_docs}.
+Para garantir que o servidor mantém sempre o mesmo endereço IP na rede local --- condição essencial para o correto funcionamento do DNS, da VPN e das entradas do inventário Ansible ---, procedeu-se à configuração de um IP estático através do Netplan \cite{netplan_docs}.
  
 \subsubsection*{Problema Encontrado: Erros de Indentação YAML e Falhas de DNS}
  
@@ -80,7 +123,7 @@ O diagnóstico começou por verificar o estado da interface de rede no servidor 
  
 A solução consistiu em forçar manualmente o VMware a utilizar o adaptador correto: abrir o Virtual Network Editor com privilégios de administrador, selecionar a rede \texttt{VMnet0}, e em vez de \textit{Automatic}, selecionar explicitamente o adaptador físico \textbf{Realtek}. A Figura~\ref{fig:vmware_network_editor} ilustra a configuração correta.
  
-\begin{figure}[htbp]
+\begin{figure}[H]
     \centering
     \includegraphics[width=0.85\textwidth]{vmware_network_editor.png}
     \caption{VMware Virtual Network Editor com o adaptador Realtek selecionado manualmente para \texttt{VMnet0} (modo \textit{Bridged}).}
@@ -89,12 +132,15 @@ A solução consistiu em forçar manualmente o VMware a utilizar o adaptador cor
  
 Após esta correção, a VM passou a manter a conectividade de rede de forma estável, independentemente de reinícios do \textit{router}.
  
+\subsection{Resolução Crítica de Esgotamento de Espaço em Disco (LVM)}
+Durante a fase de provisionamento contínuo com a pipeline, ocorreu uma falha por esgotamento total de espaço (\texttt{No space left on device}). A análise ao sistema demonstrou que o instalador do Ubuntu Server alocou, por defeito, apenas metade do disco rígido ao volume lógico principal. A resolução técnica consistiu na expansão da partição \texttt{ubuntu-lv} em tempo real através dos utilitários \texttt{lvextend} e \texttt{resize2fs}, maximizando a capacidade útil da VM para os 50 GB previstos sem necessidade de reinício ou perda de dados.
+
 \section{Automação com Ansible}
 \label{sec:ansible}
  
 Para cumprir o requisito de reprodutibilidade, todas as configurações e instalações no servidor foram realizadas exclusivamente através do Ansible, sem qualquer intervenção manual direta. O Ansible foi instalado no ambiente \textbf{WSL (Windows Subsystem for Linux)} \cite{wsl_docs} na máquina de administração Windows, dado que o Ansible não tem suporte nativo para Windows como \textit{control node}. O ponto de partida da automação é o ficheiro de inventário (\texttt{inventory.ini}), onde se define o endereço IP e o utilizador de acesso ao servidor de destino, conforme ilustrado na Figura~\ref{fig:ansible_inventory}.
  
-\begin{figure}[htbp]
+\begin{figure}[H]
     \centering
     \includegraphics[width=0.85\textwidth]{ansible_inventory.png}
     \caption{Estrutura do repositório e ficheiro de inventário do Ansible (\texttt{inventory.ini}).}
@@ -105,7 +151,7 @@ O \textit{Playbook} \texttt{setup\_docker.yml} é responsável por preparar o se
  
 A Figura~\ref{fig:ansible_sucesso} ilustra o \textit{Play Recap} de uma execução bem-sucedida, demonstrando a idempotência da ferramenta: \texttt{changed=0} indica que o Docker já se encontrava instalado e nenhuma alteração foi necessária.
  
-\begin{figure}[htbp]
+\begin{figure}[H]
     \centering
     \includegraphics[width=0.9\textwidth]{ansible_sucesso.png}
     \caption{Execução bem-sucedida do \textit{Playbook} \texttt{setup\_docker.yml} --- \textit{Play Recap} com \texttt{failed=0}.}
@@ -116,12 +162,26 @@ A Figura~\ref{fig:ansible_sucesso} ilustra o \textit{Play Recap} de uma execuç�
 \label{sec:ansible_vault}
 Atendendo à necessidade de robustez na gestão de segredos (\textit{hardening} da plataforma), foi integrada a ferramenta de cifra \textbf{Ansible Vault}. Esta adição arquitetural resolve o risco de manter credenciais administrativas em formato de texto limpo dentro do repositório Git. 
 
-Ficheiros contendo variáveis sensíveis, como a password de administração do Pi-hole (\texttt{WEBPASSWORD}) e do Grafana, foram encriptados de forma simétrica com o algoritmo AES-256. O Ansible descriptografa estas variáveis apenas em memória durante a execução do deploy automático, utilizando um ficheiro de chave temporário e protegido na pipeline, garantindo a integridade e confidencialidade dos segredos do sistema.
+Ficheiros contendo variáveis sensíveis, como a password de administração do Pi-hole (\texttt{WEBPASSWORD}), da base de dados do Nextcloud e do Grafana, foram encriptados de forma simétrica com o algoritmo AES-256 no terminal (\texttt{ansible-vault encrypt infra/vars/secrets.yml}). O Ansible descriptografa estas variáveis apenas em memória durante a execução do deploy automático, utilizando um ficheiro de chave temporário alimentado por uma variável segura da pipeline (\texttt{\$ANSIBLE\_VAULT\_PASSWORD}), garantindo a integridade e confidencialidade dos segredos do sistema contra qualquer análise estática do repositório.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\textwidth]{ansible_vault_cripto.png}
+    \caption{Visualização do bloco criptografado AES-256 após aplicação do Ansible Vault.}
+    \label{fig:ansible_vault_cripto}
+\end{figure}
  
 \section{Implementação dos Serviços via Docker Compose}
  
 Todos os serviços são definidos no ficheiro \texttt{docker-compose.yml} e partilham uma rede interna Docker designada \texttt{rede\_interna}, do tipo \texttt{bridge}. Esta rede isola os \textit{containers} da rede do \textit{host} e permite-lhes comunicar entre si através de nomes de serviço (DNS interno do Docker), sem exposição desnecessária de portas ao exterior \cite{docker_security}. Apenas as portas estritamente necessárias são publicadas no \textit{host}: 80 e 443 (Nginx), 53 TCP/UDP (Pi-hole), 8080 (painel Pi-hole), 9090 (Prometheus), 9100 (Node Exporter), 3000 (Grafana), 3100 (Loki) e 51821 UDP (WireGuard).
  
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\textwidth]{docker_ps.png}
+    \caption{Estado operacional dos contentores ativos na plataforma.}
+    \label{fig:docker_ps}
+\end{figure}
+
 \subsection{Servidor DNS: Pi-hole}
 \label{sec:pihole}
  
@@ -139,7 +199,7 @@ sudo docker exec dns_pihole pihole setpassword 'nova_password'
  
 A solução definitiva para evitar recorrência seria eliminar o volume antes de uma nova inicialização limpa (\texttt{docker compose down -v}). A Figura~\ref{fig:pihole_admin} comprova o acesso bem-sucedido ao painel de administração do Pi-hole.
  
-\begin{figure}[htbp]
+\begin{figure}[H]
     \centering
     \includegraphics[width=0.9\textwidth]{pihole_admin.png}
     \caption{Interface de administração do servidor DNS (Pi-hole) a correr in \textit{container}.}
@@ -152,12 +212,19 @@ O Nginx é configurado com um volume Docker em modo \textit{read-only} (\texttt{
 
 Além disso, o Nginx atua como Reverse Proxy completo, intercetando todos os pedidos HTTP direcionados para os subcaminhos organizados da plataforma (como \texttt{/grafana/} e \texttt{/nextcloud/}), encaminhando o tráfego de forma limpa pela rede interna sem expor os portos das aplicações para o exterior. A Figura~\ref{fig:pagina_web_nginx} demonstra a página de estado da infraestrutura.
  
-\begin{figure}[htbp]
+\begin{figure}[H]
     \centering
     \includegraphics[width=0.9\textwidth]{pagina_web_nginx.png}
     \caption{Página Web servida pelo Nginx através de um Volume Docker em modo \textit{Read-Only}.}
     \label{fig:pagina_web_nginx}
 \end{figure}
+
+\subsection{Cloud Corporativa e Servidor de E-mail}
+Com vista a cobrir o leque completo de requisitos, integraram-se os serviços corporativos de partilha de ficheiros e comunicações:
+\begin{itemize}
+    \item \textbf{Nextcloud:} A nuvem privada foi implementada garantindo persistência robusta. Os volumes do Nextcloud foram mapeados para o diretório local da aplicação, assegurando que o armazenamento dos ficheiros dos utilizadores sobrevive a recriações do contentor.
+    \item \textbf{Docker-Mailserver:} O contentor de e-mail iniciou os protocolos SMTP e IMAP. Durante a implementação, a estabilização completa da stack Dovecot/Postfix exigiu algum tempo de latência de \textit{boot}. A gestão de contas (\textit{e.g.,} criação do utilizador \texttt{daniel@local.lan}) foi configurada via CLI utilizando a ferramenta administrativa interna \texttt{setup email add}.
+\end{itemize}
  
 \subsection{VPN: WireGuard}
 \label{sec:wireguard}
@@ -174,7 +241,7 @@ O WireGuard foi implementado utilizando a imagem \texttt{lscr.io/linuxserver/wir
  
 O \textit{container} WireGuard requer duas \textit{capabilities} adicionais do sistema operativo (\texttt{cap\_add: NET\_ADMIN, SYS\_MODULE}), necessárias para manipular as interfaces de rede do \textit{kernel}. A Figura~\ref{fig:wireguard_qr} mostra o QR code gerado automaticamente pelo \textit{container} para configuração do cliente móvel.
  
-\begin{figure}[htbp]
+\begin{figure}[H]
     \centering
     \includegraphics[width=0.5\textwidth]{wireguard_qr.png}
     \caption{QR code gerado pelo \textit{container} WireGuard para configuração automática do cliente móvel (\textit{peer1}).}
@@ -196,7 +263,7 @@ O resultado foi revelador: \textbf{zero pacotes capturados}. Isto significava qu
  
 A solução foi configurar o \textit{router} em modo \textbf{DMZ} \cite{dmz_cloudflare} apontado para o IP do servidor (\texttt{192.168.1.252}), seguido de um reinício físico do \textit{router} (um reinício por software não foi suficiente). Após isso, os pacotes UDP passaram a ser visíveis no \texttt{tcpdump} e a ligação VPN foi estabelecida com sucesso, conforme comprova a Figura~\ref{fig:wireguard_ligado}.
  
-\begin{figure}[htbp]
+\begin{figure}[H]
     \centering
     \includegraphics[width=0.6\textwidth]{wireguard_ligado.png}
     \caption{Ligação VPN WireGuard estabelecida com sucesso no dispositivo móvel (estado \textit{Active}).}
@@ -208,14 +275,14 @@ A solução foi configurar o \textit{router} em modo \textbf{DMZ} \cite{dmz_clou
  
 Para implementar a \textit{pipeline} de CI/CD, foi necessário instalar um \textit{GitLab Runner} no próprio servidor Ubuntu \cite{gitlab_cicd, gitlab_runner_docs}. A opção por um \textit{runner} local justifica-se pela arquitetura de rede: o servidor encontra-se numa rede privada, inacessível diretamente pelos \textit{runners} partilhados da plataforma GitLab. O modelo \textit{Pull} --- onde o \textit{Runner} interpela periodicamente o servidor GitLab para obter novos \textit{jobs} --- resolve este problema sem expor o servidor à Internet. O \textit{Runner} foi registado com o executor \texttt{shell} e ficou imediatamente visível e ativo na interface web do GitLab, como comprovam as Figuras~\ref{fig:runner_registo} e~\ref{fig:runner_online}.
  
-\begin{figure}[htbp]
+\begin{figure}[H]
     \centering
     \includegraphics[width=0.9\textwidth]{gitlab_runner_registo.png}
     \caption{Registo bem-sucedido do GitLab Runner no servidor Ubuntu.}
     \label{fig:runner_registo}
 \end{figure}
  
-\begin{figure}[htbp]
+\begin{figure}[H]
     \centering
     \includegraphics[width=0.9\textwidth]{gitlab_runner_online.png}
     \caption{\textit{Runner} ativo e em comunicação com o repositório GitLab (estado \textit{online}).}
@@ -241,7 +308,7 @@ deploy_infraestrutura:
  
 Para que o utilizador do \textit{Runner} possa executar o Ansible com \texttt{sudo} sem intervenção manual, foi necessário adicionar uma regra no \texttt{sudoers}: \texttt{gitlab-runner ALL=(ALL) NOPASSWD: /usr/bin/ansible-playbook}. A Figura~\ref{fig:pipeline_sucesso} demonstra a execução completa e bem-sucedida da \textit{pipeline}.
  
-\begin{figure}[htbp]
+\begin{figure}[H]
     \centering
     \includegraphics[width=0.9\textwidth]{pipeline_sucesso.png}
     \caption{Execução bem-sucedida da \textit{pipeline} de CI/CD --- \textit{deploy} automático da infraestrutura a partir de um \textit{commit}.}
@@ -253,31 +320,48 @@ Para que o utilizador do \textit{Runner} possa executar o Ansible com \texttt{su
  
 O Prometheus é configurado através do ficheiro \texttt{prometheus.yml}, montado como volume \textit{read-only} no \textit{container} \cite{prometheus_docs}. O ficheiro define os \textit{scrape jobs} necessários referenciados pelo DNS interno da rede Docker. O intervalo de \textit{scrape} foi configurado a 15 segundos. A Figura~\ref{fig:prometheus_targets} comprova que ambos os \textit{targets} estão no estado \textit{UP}.
  
-\begin{figure}[htbp]
+\begin{figure}[H]
     \centering
     \includegraphics[width=0.9\textwidth]{prometheus_targets.png}
     \caption{Interface de \textit{targets} do Prometheus com ambos os serviços no estado \textit{UP}.}
     \label{fig:prometheus_targets}
 \end{figure}
  
-O Grafana foi configurado com a palavra-passe de administrador protegida por variável de ambiente \cite{grafana_docs}. Com o intuito de expandir a visibilidade do operador sobre os diferentes vetores do sistema, foram estruturados e configurados três dashboards analíticos na interface unificada:
+O Grafana foi configurado com a palavra-passe de administrador protegida por variável de ambiente \cite{grafana_docs}. Para mitigar a dependência de processos manuais, implementou-se o mecanismo de \textit{Grafana Provisioning}. Foram parametrizados ficheiros YAML em \texttt{/etc/grafana/provisioning/datasources/} que pré-configuram o Prometheus e o Loki como fontes de dados nativas mal o contentor arranca.
+
+Foram estruturados e ativados múltiplos painéis analíticos de elevada profundidade técnica:
  
 \begin{enumerate}
-    \item \textbf{Dashboard de Desempenho do Host (Node Exporter):} Utilizando o ID oficial 1860, apresenta métricas em tempo real sobre a saturação de CPU, consumo de memória RAM, leituras de disco I/O e tráfego ativo nas interfaces de rede do servidor hospedeiro Ubuntu (Figura~\ref{fig:grafana_dashboard}).
-    \item \textbf{Dashboard de Estado dos Contentores (cAdvisor):} Focado na saúde individual dos containers Docker em execução. Permite monitorizar picos isolados de consumo e diagnosticar se o Nextcloud, Mailserver ou o Nginx apresentam perdas de pacotes ou comportamentos anómalos.
-    \item \textbf{Dashboard de Auditoria de Segurança e Logs (Grafana Loki):} Integrado dinamicamente com o agente Promtail. Centraliza a recolha de todos os logs gerados pelo sistema operativo e pelo output dos containers, facilitando a deteção e análise de tentativas de intrusão por SSH, falhas do servidor de e-mail e acessos negados no router de fronteira.
+    \item \textbf{Dashboard de Desempenho do Host (Node Exporter):} Apresenta métricas em tempo real sobre a saturação de CPU, consumo de memória RAM, leituras de disco I/O e tráfego ativo nas interfaces de rede do servidor hospedeiro Ubuntu (Figura~\ref{fig:grafana_dashboard}).
+    \item \textbf{Dashboard de Estado dos Contentores (cAdvisor):} Focado na telemetria individual do ecossistema Docker. Monitoriza limites de memória e processamento, fulcral para prevenir \textit{bottlenecks} de containers pesados como o Nextcloud ou o Mailserver.
+    \item \textbf{Dashboard de Auditoria e Centralização de Logs (Grafana Loki + Promtail):} Agrega os eventos gerados.
 \end{enumerate}
 
-A Figura~\ref{fig:grafana_datasource} mostra a configuração da ligação entre o Grafana e o Prometheus, e a Figura~\ref{fig:grafana_dashboard} ilustra o painel de monitorização em tempo real.
+\subsection{Resolução de Leitura de Logs (Docker Socket no Promtail)}
+Numa iteração inicial, a integração Loki/Promtail falhou a leitura dos \textit{logs} dos containers porque o agente não tinha privilégios no sistema hospedeiro para investigar o motor de virtualização. O obstáculo foi removido expondo o \textit{socket} do Docker Host em modo de leitura para o interior do Promtail:
+
+\begin{lstlisting}[language=bash, frame=single, breaklines=true, caption={Mapeamento do socket Docker no compose do Promtail}]
+volumes:
+  - /var/run/docker.sock:/var/run/docker.sock:ro
+\end{lstlisting}
+
+Com esta parametrização, o Promtail adquiriu visibilidade sobre os \textit{labels} do Docker, permitindo a extração estruturada de dados. Através da linguagem \textit{LogQL}, tornou-se exequível a elaboração de consultas precisas (ex: auditar os eventos do Reverse Proxy invocando a tag \texttt{\{container="nginx\_proxy"\}}), centralizando o \textit{troubleshooting} no painel web, como ilustra a Figura~\ref{fig:grafana_loki_logs}.
  
-\begin{figure}[htbp]
+\begin{figure}[H]
     \centering
     \includegraphics[width=0.88\textwidth]{grafana_datasource.png}
     \caption{Configuração do Prometheus como \textit{Data Source} no Grafana, com estado de ligação confirmado.}
     \label{fig:grafana_datasource}
 \end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\textwidth]{grafana_loki_logs.png}
+    \caption{Logs centralizados no Grafana Loki demonstrando a captura de eventos de containers em tempo real.}
+    \label{fig:grafana_loki_logs}
+\end{figure}
  
-\begin{figure}[htbp]
+\begin{figure}[H]
     \centering
     \includegraphics[width=0.9\textwidth]{grafana_dashboard.png}
     \caption{Painel \textit{Node Exporter Full} no Grafana a exibir métricas do servidor em tempo real.}
@@ -286,7 +370,7 @@ A Figura~\ref{fig:grafana_datasource} mostra a configuração da ligação entre
  
 \section{Síntese das Configurações de Segurança Aplicadas}
  
-A Tabela~\ref{tab:seguranca} sintetiza as medidas de segurança aplicadas na plataforma, em conformidade com as recomendações do NIST SP 800-190 \cite{nist_containers}.
+A Tabela~\ref{tab:seguranca} sintetiza as medidas de segurança aplicadas na plataforma, em conformidade com as recomendações do guia prático de contentores NIST SP 800-190 \cite{nist_containers}.
  
 \begin{table}[htbp]
 \centering
@@ -303,8 +387,6 @@ Mínimo privilégio & Utilizador \texttt{daniel} no grupo \texttt{docker} (sem \
 Isolamento de rede & Rede Docker interna (\texttt{bridge}) sem exposição desnecessária & Todos \\
 \hline
 Encriptação de tráfego & WireGuard (ChaCha20-Poly1305) para acesso remoto com DDNS & WireGuard \\
-\hline
-Encriptação de tráfego & HTTPS (TLS) via Nginx (a implementar com Let's Encrypt) & Nginx \\
 \hline
 Proteção de Segredos & Cifragem AES-256 via Ansible Vault em variáveis de configuração & Ansible / Todos \\
 \hline
